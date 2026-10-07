@@ -40,7 +40,7 @@ This repository is the **entire** game, client and server. Things you can verify
   10 uploads per minute per IP, newest 200 kept) so X can show it under your post, and it is also copied
   to your clipboard. See `server/cards.js`. Nothing is written to disk.
 - `$PEST` is a memecoin. The game does not affect its price and nothing here is financial advice.
-  The official contract address will be listed here once it exists: `TBA`.
+  The official contract address will be listed here once it exists: `4dhCyMTvUWxKb7EmhwkWQmagPeX7xSFaArwT1ucEpump`.
 
 ## Run it locally
 
