@@ -114,6 +114,14 @@
   #lb li.foot { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,.1); font-size: 11px; justify-content: center; }
   #lb li span:first-child { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #lb em { font-style: normal; opacity: .55; font-size: 10px; }
+  #lb li.bot { opacity: .65; }
+  #lb li.gap { padding: 0; line-height: 6px; justify-content: center; letter-spacing: 2px; }
+  #cardPreview { display: block; width: 100%; height: auto; border-radius: 12px; margin: 0 0 12px; background: rgba(255,255,255,.04); aspect-ratio: 16 / 9; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + var(--safe-b)); transform: translateX(-50%);
+    max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
+    background: rgba(16, 14, 28, .95); border: 1px solid rgba(124, 92, 255, .6); z-index: 5;
+  }
   #boostBtn {
     position: fixed; right: calc(18px + var(--safe-r)); bottom: calc(22px + var(--safe-b));
     width: 84px; height: 84px; border-radius: 50%; border: 2px solid var(--violet);
@@ -135,7 +143,7 @@
 <main id="menu" class="panel">
   <div class="brand"><img src="coin.png" alt="" width="52" height="52"><h1>pest.mom</h1></div>
   <p class="slogan">Become the biggest pest on Solana.</p>
-  <p class="lead">Fly around, eat <b>$PEST</b> orbs and grow your tail. Make other flies crash into it. Hit someone's tail and you're out.</p>
+  <p class="lead">Fly around, eat <b>$PEST</b> orbs and grow your tail. Make other flies crash into it. Hit someone's tail and you're out. The edges of the map bounce you back.</p>
   <label class="label" for="name">Your nickname</label>
   <input id="name" class="field" maxlength="16" placeholder="@yournick" autocomplete="off">
   <canvas id="preview" width="640" height="170"></canvas>
@@ -154,15 +162,20 @@
 <section id="dead" class="panel" hidden>
   <h2>You're out</h2>
   <p class="lead" id="deadReason"></p>
+  <img id="cardPreview" alt="Your result card" hidden>
   <div class="stats">
     <div class="stat"><b id="deadScore">0</b><span>Final length</span></div>
     <div class="stat"><b id="deadKills">0</b><span>Flies cut off</span></div>
     <div class="stat"><b id="deadTime">0:00</b><span>Time alive</span></div>
   </div>
   <button id="again" class="btn">Play again</button>
-  <button id="share" class="link" type="button">Share result on X</button>
+  <div class="row" style="margin-top:10px">
+    <button id="share" class="btn2" type="button">Share on X</button>
+    <button id="save" class="btn2" type="button">Save image</button>
+  </div>
   <button id="back" class="link" type="button">Change look</button>
 </section>
+<div id="toast" class="toast" hidden></div>
 
 <script>
 (() => {
@@ -190,7 +203,8 @@
     mode: 'menu',   // 'menu' | 'play' | 'dead'
     ws: null, id: 0, world: 3200,
     snakes: new Map(), food: [], lb: [], mass: 10,
-    rank: [0, 0], online: 0, last: null,
+    rank: [0, 0], online: 0, last: null, lastCardBlob: null, lastCardUrl: '',
+    mm: new Map(), myName: '',
   };
   const cam = { x: 1600, y: 1600 };
   const pointer = { x: 0, y: 0, has: false };
@@ -444,8 +458,13 @@
     drawFly(g, pts, 20, +$('hue').value, false, myAvatarImg, 0, now);
   }
 
-  // ---------- the fly brain (decorative neural activity) ----------
-  const brain = { nodes: [], edges: [], adj: [], q: [], left: [], right: [], nextIdle: 0, status: 'buzzing' };
+  // ---------- the fly brain: neurons that crunch real maths ----------
+  const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
+  const brain = {
+    nodes: [], edges: [], adj: [], q: [], left: [], right: [],
+    nextIdle: 0, status: 'buzzing', flash: 0,
+    task: null, taskNextAt: 0, holdUntil: 0, order: [], oi: 0,
+  };
   (function initBrain() {
     let seed = 20261007;
     const rnd = () => {
@@ -455,11 +474,11 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
     let guard = 0;
-    while (brain.nodes.length < 44 && guard++ < 8000) {
+    while (brain.nodes.length < 56 && guard++ < 12000) {
       const x = rnd() * 2 - 1, y = rnd() * 2 - 1;
-      const lobe = Math.abs(x) - 0.5;              // two hemispheres
-      if ((lobe * lobe) / (0.5 * 0.5) + (y * y) / (0.8 * 0.8) > 1) continue;
-      if (brain.nodes.some((n) => Math.hypot(n.x - x, n.y - y) < 0.2)) continue;
+      const lobe = Math.abs(x) - 0.5;
+      if ((lobe * lobe) / 0.25 + (y * y) / 0.64 > 1) continue;
+      if (brain.nodes.some((n) => Math.hypot(n.x - x, n.y - y) < 0.17)) continue;
       brain.nodes.push({ x, y, e: 0, refr: 0, ph: rnd() * TAU });
     }
     const seen = new Set();
@@ -483,30 +502,141 @@
   })();
 
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  function brainFire(i, ttl, now) { brain.q.push({ n: i, at: now, ttl, from: -1, edge: -1 }); }
+  const anyNode = () => Math.floor(Math.random() * brain.nodes.length);
+
+  // A neuron fires and sends visible signal packets along its connections.
+  function brainSpread(i, ttl, now, from) {
+    for (const nb of brain.adj[i]) {
+      if (nb.n === from) continue;
+      brain.q.push({ n: nb.n, t0: now, at: now + 150 + Math.random() * 120, ttl: ttl - 1, from: i, edge: nb.edge });
+    }
+  }
+  function brainFire(i, ttl, now) {
+    const n = brain.nodes[i];
+    if (now < n.refr) return;
+    n.e = 1; n.refr = now + 300;
+    if (ttl > 0) brainSpread(i, ttl, now, -1);
+  }
+
+  // Real little calculations that run live in the corner. Each one is a genuine computation.
+  const TASKS = [
+    () => {
+      const t = { title: "Newton's method", sub: 'x² = 2', target: Math.SQRT2, digits: 11, total: 7, k: 0, x: 3, val: 3, info: 'first guess: 3' };
+      t.step = () => { t.x -= (t.x * t.x - 2) / (2 * t.x); t.val = t.x; t.k++; t.info = `iteration ${t.k}`; };
+      return t;
+    },
+    () => {
+      const t = { title: 'Basel problem', sub: 'Σ 1/n² → π²/6', target: Math.PI * Math.PI / 6, digits: 8, total: 12, k: 0, n: 0, sum: 0, val: 0, info: '0 terms' };
+      t.step = () => {
+        const add = 2 ** (t.k + 1);
+        for (let i = 0; i < add; i++) { t.n++; t.sum += 1 / (t.n * t.n); }
+        t.val = t.sum; t.k++; t.info = `${t.n.toLocaleString('en')} terms`;
+      };
+      return t;
+    },
+    () => {
+      const t = { title: 'Monte Carlo', sub: 'throw darts, find π', target: Math.PI, digits: 5, total: 10, k: 0, n: 0, inside: 0, val: 0, info: '0 darts' };
+      t.step = () => {
+        for (let i = 0; i < 4000; i++) { const x = Math.random(), y = Math.random(); if (x * x + y * y <= 1) t.inside++; t.n++; }
+        t.val = 4 * t.inside / t.n; t.k++; t.info = `${t.n.toLocaleString('en')} darts`;
+      };
+      return t;
+    },
+    () => {
+      const t = { title: "Euler's number", sub: 'Σ 1/n!', target: Math.E, digits: 10, total: 13, k: 0, sum: 1, term: 1, val: 1, info: '1 term' };
+      t.step = () => { t.k++; t.term /= t.k; t.sum += t.term; t.val = t.sum; t.info = `${t.k + 1} terms`; };
+      return t;
+    },
+    () => {
+      const t = { title: 'Golden ratio', sub: 'F(n+1) / F(n)', target: (1 + Math.sqrt(5)) / 2, digits: 10, total: 20, k: 0, a: 1, b: 1, val: 1, info: 'F(1) = 1' };
+      t.step = () => { const c = t.a + t.b; t.a = t.b; t.b = c; t.k++; t.val = t.b / t.a; t.info = `F(${t.k + 2}) = ${t.b}`; };
+      return t;
+    },
+    () => {
+      const t = { title: 'Integral', sub: '∫ sin x dx, 0 to π', target: 2, digits: 10, total: 12, k: 0, val: 0, info: '2 slices' };
+      t.step = () => {
+        const N = 2 ** (t.k + 1), h = Math.PI / N;
+        let sum = Math.sin(0) + Math.sin(Math.PI);
+        for (let i = 1; i < N; i++) sum += Math.sin(i * h) * (i % 2 ? 4 : 2);
+        t.val = sum * h / 3; t.k++; t.info = `${N} slices`;
+      };
+      return t;
+    },
+    () => {
+      const f = (x) => x * x * x - 2 * x - 5;
+      const t = { title: 'Root finding', sub: 'x³ − 2x − 5 = 0', target: 2.0945514815423265, digits: 9, total: 16, k: 0, lo: 2, hi: 3, val: 2.5, info: 'interval 1.0e+0' };
+      t.step = () => {
+        for (let j = 0; j < 2; j++) { const m = (t.lo + t.hi) / 2; if (f(m) > 0) t.hi = m; else t.lo = m; }
+        t.val = (t.lo + t.hi) / 2; t.k++; t.info = `interval ${(t.hi - t.lo).toExponential(1)}`;
+      };
+      return t;
+    },
+    () => {
+      const seq = [27];
+      let n = 27;
+      while (n !== 1) { n = n % 2 ? 3 * n + 1 : n / 2; seq.push(n); }
+      const peak = Math.max(...seq);
+      const t = { title: 'Collatz', sub: 'from 27 down to 1', target: null, digits: 0, total: Math.ceil(seq.length / 8), k: 0, i: 0, val: 27, info: 'step 0' };
+      t.step = () => {
+        t.i = Math.min(seq.length - 1, t.i + 8); t.val = seq[t.i]; t.k++;
+        t.info = `step ${t.i} · peak ${Math.max(...seq.slice(0, t.i + 1)).toLocaleString('en')}`;
+        if (t.k >= t.total) { t.val = 1; t.info = `${seq.length - 1} steps · peak ${peak.toLocaleString('en')}`; }
+      };
+      return t;
+    },
+  ];
+  const taskText = (t) => (t.target === null ? String(Math.round(t.val)) : t.val.toFixed(t.digits));
+  const taskMatch = (t, s) => {
+    if (t.target === null) return 0;
+    const ref = t.target.toFixed(t.digits);
+    let m = 0;
+    while (m < s.length && s[m] === ref[m]) m++;
+    return m;
+  };
+
+  function startTask(now) {
+    if (brain.oi >= brain.order.length) { brain.order = TASKS.map((_, i) => i).sort(() => Math.random() - 0.5); brain.oi = 0; }
+    brain.task = TASKS[brain.order[brain.oi++]]();
+    brain.task.done = false;
+    brain.taskNextAt = now + 500;
+  }
 
   function brainStep(now, dt) {
-    for (const n of brain.nodes) n.e = Math.max(0, n.e - dt * 1.4);
-    for (const e of brain.edges) e.e = Math.max(0, e.e - dt * 2);
+    for (const n of brain.nodes) n.e = Math.max(0, n.e - dt * 1.3);
+    for (const e of brain.edges) e.e = Math.max(0, e.e - dt * 1.8);
+    brain.flash = Math.max(0, brain.flash - dt * 1.4);
+
     if (now > brain.nextIdle) {
-      brain.nextIdle = now + 220 + Math.random() * 500;
-      brainFire(Math.floor(Math.random() * brain.nodes.length), 3, now);
+      brain.nextIdle = now + 400 + Math.random() * 600;
+      brainFire(anyNode(), 3, now);
     }
+
+    if (!brain.task || (brain.task.done && now > brain.holdUntil)) startTask(now);
+    const t = brain.task;
+    if (!t.done && now >= brain.taskNextAt) {
+      t.step();
+      brain.taskNextAt = now + 300 + Math.random() * 180;
+      brainFire(anyNode(), 3, now);
+      brainFire(anyNode(), 3, now);
+      if (t.k >= t.total) {
+        t.done = true;
+        brain.holdUntil = now + 1900;
+        brain.flash = 1;
+        for (let i = 0; i < 8; i++) brainFire(anyNode(), 5, now);
+      }
+    }
+
+    // move signal packets; when one arrives the next neuron fires
     const next = [];
     for (const p of brain.q) {
       if (p.at > now) { next.push(p); continue; }
       const node = brain.nodes[p.n];
       if (now < node.refr) continue;
-      node.e = 1; node.refr = now + 380;
-      if (p.edge >= 0) brain.edges[p.edge].e = 1;
-      if (p.ttl > 0) {
-        for (const nb of brain.adj[p.n]) {
-          if (nb.n === p.from) continue;
-          next.push({ n: nb.n, at: now + 80 + Math.random() * 90, ttl: p.ttl - 1, from: p.n, edge: nb.edge });
-        }
-      }
+      node.e = 1; node.refr = now + 300;
+      brain.edges[p.edge].e = 1;
+      if (p.ttl > 0) brainSpread(p.n, p.ttl, now, p.from);
     }
-    brain.q = next.length > 500 ? next.slice(-500) : next;
+    brain.q = next.length > 600 ? next.slice(-600) : next;
   }
 
   function computeStatus(now) {
@@ -536,63 +666,112 @@
   }
 
   function drawBrain(now) {
-    const S = Math.round(Math.max(128, Math.min(190, Math.min(W, H) * 0.3)));
-    const x0 = 14 + safe.l, y0 = H - S - 16 - safe.b;
-    ctx.save();
-    ctx.fillStyle = 'rgba(8,7,13,.72)';
-    ctx.strokeStyle = 'rgba(124,92,255,.55)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.roundRect(x0, y0, S, S, 16); ctx.fill(); ctx.stroke();
+    const S = Math.round(Math.max(150, Math.min(232, Math.min(W, H) * 0.34)));
+    const hdr = 20, bh = Math.round(S * 0.72), mh = Math.round(S * 0.4);
+    const w = S, h = hdr + bh + mh + 4;
+    const x0 = 14 + safe.l, y0 = H - h - 16 - safe.b;
+    const f = brain.flash;
 
-    const cx = x0 + S / 2, cy = y0 + S / 2 - 8;
-    const RX = S * 0.46, RY = S * 0.37;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,7,13,.8)';
+    ctx.strokeStyle = f > 0.02 ? `rgba(255,210,60,${0.45 + 0.55 * f})` : 'rgba(124,92,255,.55)';
+    ctx.lineWidth = 1 + f * 2;
+    ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 16); ctx.fill(); ctx.stroke();
+
+    // header: title and what the fly is "feeling" right now
+    ctx.font = '600 10px Sora, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(241,238,252,.75)';
+    ctx.fillText('pest brain', x0 + 12, y0 + 14);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = brain.status === 'panic!' ? '#ff5c7a' : brain.status === 'zoom!' ? '#ffd23c' :
+      brain.status === 'snack time' ? '#6ee1ff' : 'rgba(241,238,252,.5)';
+    ctx.fillText(brain.status, x0 + w - 12, y0 + 14);
+
+    // the network
+    const by = y0 + hdr;
+    const cx = x0 + w / 2, cy = by + bh / 2;
+    const RX = w * 0.44, RY = bh * 0.42;
     const px = (n) => cx + n.x * RX, py = (n) => cy + n.y * RY;
 
-    // hemispheres + fold lines
     ctx.fillStyle = 'rgba(124,92,255,.07)';
     ctx.strokeStyle = 'rgba(160,140,255,.35)';
+    ctx.lineWidth = 1;
     for (const sgn of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(cx + sgn * RX * 0.5, cy, RX * 0.52, RY * 0.84, 0, 0, TAU);
+      ctx.ellipse(cx + sgn * RX * 0.5, cy, RX * 0.56, RY * 0.9, 0, 0, TAU);
       ctx.fill(); ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(160,140,255,.14)';
-    for (const sgn of [-1, 1]) {
-      for (let k = -2; k <= 2; k++) {
-        ctx.beginPath();
-        const yy = cy + k * RY * 0.3;
-        ctx.moveTo(cx + sgn * RX * 0.12, yy);
-        ctx.quadraticCurveTo(cx + sgn * RX * 0.5, yy + (k % 2 ? 9 : -9), cx + sgn * RX * 0.9, yy);
-        ctx.stroke();
-      }
-    }
 
-    // glowing connections and neurons
     ctx.globalCompositeOperation = 'lighter';
     for (const e of brain.edges) {
       const a = brain.nodes[e.a], b = brain.nodes[e.b];
-      ctx.strokeStyle = e.e > 0.02
-        ? `rgba(110,225,255,${0.12 + e.e * 0.85})`
-        : 'rgba(124,92,255,.22)';
-      ctx.lineWidth = 0.8 + e.e * 1.6;
+      ctx.strokeStyle = e.e > 0.02 ? `rgba(110,225,255,${0.12 + e.e * 0.85})` : 'rgba(124,92,255,.2)';
+      ctx.lineWidth = 0.7 + e.e * 1.6;
       ctx.beginPath(); ctx.moveTo(px(a), py(a)); ctx.lineTo(px(b), py(b)); ctx.stroke();
+    }
+    // signal packets travelling along the connections
+    for (const p of brain.q) {
+      if (p.t0 > now || p.from < 0) continue;
+      const u = Math.min(1, (now - p.t0) / (p.at - p.t0));
+      const A = brain.nodes[p.from], B = brain.nodes[p.n];
+      const x = px(A) + (px(B) - px(A)) * u, y = py(A) + (py(B) - py(A)) * u;
+      ctx.fillStyle = 'rgba(110,225,255,.28)';
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(220,250,255,.95)';
+      ctx.beginPath(); ctx.arc(x, y, 1.9, 0, TAU); ctx.fill();
     }
     for (const n of brain.nodes) {
       const x = px(n), y = py(n);
       const base = 0.35 + 0.15 * Math.sin(now / 900 + n.ph);
       if (n.e > 0.03) {
-        ctx.fillStyle = `rgba(110,225,255,${n.e * 0.3})`;
+        ctx.fillStyle = (f > 0.1 ? 'rgba(255,210,60,' : 'rgba(110,225,255,') + (n.e * 0.3) + ')';
         ctx.beginPath(); ctx.arc(x, y, 3 + n.e * 8, 0, TAU); ctx.fill();
       }
       ctx.fillStyle = n.e > 0.03 ? `rgba(190,245,255,${0.5 + n.e * 0.5})` : `rgba(170,150,255,${base})`;
-      ctx.beginPath(); ctx.arc(x, y, 1.6 + n.e * 1.8, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, 1.5 + n.e * 1.8, 0, TAU); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // the calculation currently being solved
+    const my = by + bh;
+    ctx.strokeStyle = 'rgba(124,92,255,.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0 + 10, my); ctx.lineTo(x0 + w - 10, my); ctx.stroke();
+    const t = brain.task;
+    if (t) {
+      ctx.textAlign = 'center';
+      ctx.font = '600 9.5px Sora, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(241,238,252,.62)';
+      ctx.fillText(`${t.title} · ${t.sub}`, cx, my + 14, w - 16);
+
+      const vs = taskText(t);
+      const fs = Math.round(S * 0.088);
+      const vy = my + 14 + fs + 5;
+      ctx.font = `700 ${fs}px ${MONO}`;
+      ctx.textAlign = 'left';
+      const m = taskMatch(t, vs);
+      const full = ctx.measureText(vs).width, pre = ctx.measureText(vs.slice(0, m)).width;
+      const xx = cx - full / 2;
+      ctx.fillStyle = t.done ? '#ffd23c' : '#6ee1ff';
+      ctx.fillText(vs.slice(0, m), xx, vy);
+      ctx.fillStyle = 'rgba(176,156,255,.9)';
+      ctx.fillText(vs.slice(m), xx + pre, vy);
+
+      const barW = w - 28, barY = vy + 8;
+      ctx.fillStyle = 'rgba(255,255,255,.1)';
+      ctx.fillRect(x0 + 14, barY, barW, 3);
+      ctx.fillStyle = t.done ? '#ffd23c' : '#6ee1ff';
+      ctx.fillRect(x0 + 14, barY, barW * Math.min(1, t.k / t.total), 3);
+
+      ctx.textAlign = 'center';
+      ctx.font = '600 9px Sora, system-ui, sans-serif';
+      let info = t.info;
+      if (t.done) info = t.target === null ? `done ✓  ${t.info}` : `done ✓  error ${Math.abs(t.val - t.target).toExponential(1)}`;
+      ctx.fillStyle = t.done ? '#ffd23c' : 'rgba(241,238,252,.55)';
+      ctx.fillText(info, cx, barY + 15, w - 16);
     }
     ctx.restore();
-
-    ctx.textAlign = 'center';
-    ctx.font = '600 10px Sora, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(241,238,252,.7)';
-    ctx.fillText('pest brain · ' + brain.status, x0 + S / 2, y0 + S - 9);
   }
 
   // ---------- networking ----------
@@ -618,6 +797,7 @@
 
   function join() {
     const name = $('name').value.trim() || 'Player';
+    state.myName = name;
     const hue = +$('hue').value;
     try { localStorage.setItem('pest.profile', JSON.stringify({ name: $('name').value, hue, av: myAvatar })); } catch {}
     $('err').textContent = '';
@@ -630,7 +810,7 @@
 
   function onWelcome(m) {
     state.id = m.id; state.world = m.world; state.mode = 'play';
-    state.snakes.clear(); state.food = [];
+    state.snakes.clear(); state.food = []; state.mm.clear();
     $('menu').hidden = true; $('dead').hidden = true; $('hud').hidden = false;
   }
 
@@ -652,6 +832,16 @@
     }
     for (const id of state.snakes.keys()) if (!seen.has(id)) state.snakes.delete(id);
     if (m.fd) state.food = m.fd;
+    if (m.mm) {
+      const ids = new Set();
+      for (const r of m.mm) {
+        ids.add(r[0]);
+        let e = state.mm.get(r[0]);
+        if (!e) { e = { id: r[0], x: r[1], y: r[2] }; state.mm.set(r[0], e); }
+        e.tx = r[1]; e.ty = r[2]; e.hue = r[3]; e.human = r[4] === 1; e.name = r[5] || '';
+      }
+      for (const id of state.mm.keys()) if (!ids.has(id)) state.mm.delete(id);
+    }
     state.lb = m.lb;
     state.rank = m.rk || state.rank;
     state.online = m.on || 0;
@@ -666,14 +856,79 @@
 
   function onDead(m) {
     state.mode = 'dead'; boosting = false;
-    state.last = { score: m.score, kills: m.kills };
+    state.last = { score: m.score, kills: m.kills, rank: m.rank, of: m.of, time: m.time || 0, name: state.myName || 'Player', hue: +$('hue').value };
     $('deadScore').textContent = m.score;
     $('deadKills').textContent = m.kills;
     $('deadTime').textContent = fmtTime(m.time || 0);
-    const why = m.reason === 'wall' ? 'You hit the edge of the map.' :
-      m.by ? `${m.by} cut you off.` : 'You flew into another tail.';
+    const why = m.by ? `${m.by} cut you off.` : 'You flew into another tail.';
     $('deadReason').textContent = m.rank ? `${why} You finished #${m.rank} of ${m.of}.` : why;
+    $('cardPreview').hidden = true;
     $('dead').hidden = false;
+    makeCard(state.last).then((blob) => {
+      if (!blob) return;
+      if (state.lastCardUrl) URL.revokeObjectURL(state.lastCardUrl);
+      state.lastCardBlob = blob;
+      state.lastCardUrl = URL.createObjectURL(blob);
+      $('cardPreview').src = state.lastCardUrl;
+      $('cardPreview').hidden = false;
+    }).catch(() => {});
+  }
+
+  // Builds the 1200x675 result picture that players share.
+  function makeCard(l) {
+    const c = document.createElement('canvas');
+    c.width = 1200; c.height = 675;
+    const g = c.getContext('2d');
+    const FONT = 'Sora, system-ui, sans-serif';
+    g.fillStyle = '#08070d'; g.fillRect(0, 0, 1200, 675);
+    g.fillStyle = hexPattern; g.fillRect(0, 0, 1200, 675);
+    const glow = g.createRadialGradient(950, 140, 20, 950, 140, 620);
+    glow.addColorStop(0, 'rgba(124,92,255,.38)'); glow.addColorStop(1, 'rgba(124,92,255,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, 1200, 675);
+
+    drawCoinFace(g, 96, 84, 42);
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.fillStyle = '#f1eefc'; g.font = `700 44px ${FONT}`;
+    g.fillText('pest.mom', 156, 99);
+
+    g.fillStyle = 'rgba(241,238,252,.7)'; g.font = `600 34px ${FONT}`;
+    g.fillText(l.name.slice(0, 16), 70, 200);
+
+    g.fillStyle = '#ffffff'; g.font = `700 210px ${FONT}`;
+    g.fillText(String(l.score), 62, 390);
+    g.fillStyle = 'rgba(241,238,252,.6)'; g.font = `600 32px ${FONT}`;
+    g.fillText('final length', 70, 440);
+
+    const stats = [
+      [String(l.kills), 'flies cut off'],
+      [fmtTime(l.time), 'time alive'],
+      [l.rank ? `#${l.rank} of ${l.of}` : '-', 'final rank'],
+    ];
+    stats.forEach(([v, label], i) => {
+      const y = 250 + i * 110;
+      g.fillStyle = '#ffd23c'; g.font = `700 64px ${FONT}`;
+      g.fillText(v, 760, y);
+      g.fillStyle = 'rgba(241,238,252,.6)'; g.font = `600 26px ${FONT}`;
+      g.fillText(label, 762, y + 34);
+    });
+
+    // the player's own fly with its coin tail
+    const n = 10, pts = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { pts[i * 2] = 1130 - i * 36; pts[i * 2 + 1] = 585 + Math.sin(i * 0.7) * 16; }
+    drawFly(g, pts, 30, l.hue, false, myAvatarImg, 0, performance.now());
+
+    g.fillStyle = '#b9a8ff'; g.font = `700 32px ${FONT}`;
+    g.fillText('Become the biggest pest on Solana.', 70, 600);
+
+    return new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+
+  let toastTimer = 0;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 4200);
   }
 
   function showMenu(msg) {
@@ -723,11 +978,36 @@
   $('again').addEventListener('click', join);
   $('back').addEventListener('click', () => showMenu(''));
   $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
-  $('share').addEventListener('click', () => {
-    const l = state.last || { score: 0, kills: 0 };
-    const text = `I grew to ${l.score} on pest.mom and cut off ${l.kills} flies. Become the biggest pest on Solana.`;
-    window.open('https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(location.origin),
-      '_blank', 'noopener');
+  $('share').addEventListener('click', async () => {
+    const l = state.last;
+    if (!l) return;
+    const text = `I grew to ${l.score} on pest.mom and cut off ${l.kills} flies. Become the biggest pest on Solana. $PEST`;
+    const blob = state.lastCardBlob;
+    const intent = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(location.origin);
+    if (blob) {
+      const file = new File([blob], 'pest-result.png', { type: 'image/png' });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {   // phones: share sheet with the picture
+          await navigator.share({ files: [file], text, url: location.origin });
+          return;
+        }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      try {                                                               // computers: copy the picture, then open X
+        const p = navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        window.open(intent, '_blank', 'noopener');
+        p.then(() => toast('Picture copied. Paste it into your post (Ctrl+V).'))
+          .catch(() => toast('Press "Save image" and attach it to your post.'));
+        return;
+      } catch {}
+    }
+    window.open(intent, '_blank', 'noopener');
+    toast('Press "Save image" and attach it to your post.');
+  });
+  $('save').addEventListener('click', () => {
+    if (!state.lastCardUrl) return;
+    const a = document.createElement('a');
+    a.href = state.lastCardUrl; a.download = 'pest-mom-result.png';
+    document.body.appendChild(a); a.click(); a.remove();
   });
 
   // ---------- leaderboard ----------
@@ -737,14 +1017,24 @@
     if (now - lastLb < 300) return;
     lastLb = now;
     lbEl.textContent = '';
-    for (const [name, score, id, bot] of state.lb) {
+    let idx = 0, meIn = false;
+    const addRow = (label, score, cls, bot) => {
       const li = document.createElement('li');
-      if (id === state.id) li.className = 'me';
-      const a = document.createElement('span'); a.textContent = name;
+      if (cls) li.className = cls;
+      const a = document.createElement('span'); a.textContent = label;
       if (bot) { const t = document.createElement('em'); t.textContent = ' bot'; a.append(t); }
       const b = document.createElement('span'); b.textContent = score;
       li.append(a, b);
       lbEl.append(li);
+    };
+    for (const [name, score, id, bot] of state.lb) {
+      idx++;
+      if (id === state.id) meIn = true;
+      addRow(`${idx}. ${name}`, score, id === state.id ? 'me' : (bot ? 'bot' : ''), bot);
+    }
+    if (!meIn && state.rank[0] && state.mode === 'play') {
+      const gap = document.createElement('li'); gap.className = 'gap'; gap.textContent = '···'; lbEl.append(gap);
+      addRow(`${state.rank[0]}. ${state.myName || 'You'}`, Math.round(state.mass), 'me', 0);
     }
     const foot = document.createElement('li');
     foot.className = 'foot';
@@ -769,6 +1059,8 @@
     } else if (state.mode === 'play' && me) {
       cam.x = me.dx[0]; cam.y = me.dx[1];
     }
+    const km = 1 - Math.exp(-dt * 6);
+    for (const e of state.mm.values()) { e.x += (e.tx - e.x) * km; e.y += (e.ty - e.y) * km; }
     statusT -= dt;
     if (statusT <= 0) { statusT = 0.25; computeStatus(now); }
     brainStep(now, dt);
@@ -805,10 +1097,49 @@
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.roundRect(x0, y0, size, size, 10); ctx.fill(); ctx.stroke();
     const k = size / state.world;
-    for (const s of state.snakes.values()) {
-      const mine = s.id === state.id;
-      ctx.fillStyle = mine ? '#fff' : `hsl(${s.hue},80%,60%)`;
-      ctx.beginPath(); ctx.arc(x0 + s.dx[0] * k, y0 + s.dx[1] * k, mine ? 3 : 2, 0, TAU); ctx.fill();
+    for (const e of state.mm.values()) {            // every fly in the arena
+      if (e.id === state.id) continue;
+      ctx.fillStyle = `hsl(${e.hue},80%,60%)`;
+      ctx.beginPath(); ctx.arc(x0 + e.x * k, y0 + e.y * k, e.human ? 3 : 1.6, 0, TAU); ctx.fill();
+      if (e.human) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+    const me = state.snakes.get(state.id);
+    if (me) {
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x0 + me.dx[0] * k, y0 + me.dx[1] * k, 3.5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#7c5cff'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
+
+  // Arrows at the screen edge pointing to other real players who are off screen.
+  function drawFriendArrows() {
+    if (state.mode !== 'play') return;
+    const list = [];
+    for (const e of state.mm.values()) {
+      if (!e.human || e.id === state.id) continue;
+      const sx = (e.x - cam.x) * scale + W / 2, sy = (e.y - cam.y) * scale + H / 2;
+      if (sx > 30 && sx < W - 30 && sy > 30 && sy < H - 30) continue;
+      list.push({ e, sx, sy, d: Math.hypot(e.x - cam.x, e.y - cam.y) });
+    }
+    list.sort((a, b) => a.d - b.d);
+    const m = 40;
+    ctx.font = '600 11px Sora, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    for (const it of list.slice(0, 4)) {
+      const dx = it.sx - W / 2, dy = it.sy - H / 2;
+      const t = Math.min((W / 2 - m) / (Math.abs(dx) || 1e-6), (H / 2 - m) / (Math.abs(dy) || 1e-6));
+      const px = W / 2 + dx * t, py = H / 2 + dy * t;
+      const a = Math.atan2(dy, dx);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(a);
+      ctx.fillStyle = `hsl(${it.e.hue},80%,62%)`;
+      ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-9, -10); ctx.lineTo(-9, 10); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      const lx = Math.max(40, Math.min(W - 40, px - Math.cos(a) * 34));
+      const ly = Math.max(20, Math.min(H - 20, py - Math.sin(a) * 34 + 4));
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.fillText(it.e.name, lx, ly);
     }
   }
 
@@ -857,6 +1188,7 @@
     if (state.mode !== 'menu') {
       for (const s of state.snakes.values()) drawLabels(s);
       drawMinimap();
+      drawFriendArrows();
       drawBrain(now);
       renderLeaderboard(now);
     }

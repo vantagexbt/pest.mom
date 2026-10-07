@@ -14,7 +14,7 @@ const BOT_NAMES = [
 ];
 
 const DEFAULTS = {
-  world: 3200,        // square map, px
+  world: 2600,        // square map, px
   spacing: 6,         // distance between body segments, px
   baseSpeed: 170,     // px/s
   boostSpeed: 320,    // px/s
@@ -22,8 +22,8 @@ const DEFAULTS = {
   minBoostMass: 12,   // can't boost below this
   turnRate: 4.2,      // rad/s
   startMass: 10,
-  foodTarget: 800,    // coin orbs kept on the map
-  foodMax: 1400,      // hard cap incl. drops from dead snakes
+  foodTarget: 650,    // coin orbs kept on the map
+  foodMax: 1100,      // hard cap incl. drops from dead snakes
   foodGain: 0.5,      // mass per orb value
   view: 1000,         // half-size of the box of snakes sent to each player, px
   foodView: 800,      // half-size of the box of orbs sent to each player, px
@@ -90,19 +90,34 @@ class Game {
     );
   }
 
-  findSpawn() {
+  /**
+   * Bots spawn anywhere. Real players spawn 700-1200 px from another real player
+   * while only a few people are online, so friends actually meet.
+   */
+  findSpawn(human) {
     const { world } = this.cfg;
-    const margin = 500;
+    const margin = 400;
+    const humans = human ? [...this.snakes.values()].filter((s) => !s.bot) : [];
     let best = null;
-    for (let attempt = 0; attempt < 12; attempt++) {
-      const x = margin + Math.random() * (world - 2 * margin);
-      const y = margin + Math.random() * (world - 2 * margin);
+    for (let attempt = 0; attempt < 14; attempt++) {
+      let x;
+      let y;
+      if (humans.length > 0 && humans.length <= 6 && attempt < 10) {
+        const h = humans[Math.floor(Math.random() * humans.length)].segs[0];
+        const a = Math.random() * Math.PI * 2;
+        const d = 700 + Math.random() * 500;
+        x = Math.max(margin, Math.min(world - margin, h.x + Math.cos(a) * d));
+        y = Math.max(margin, Math.min(world - margin, h.y + Math.sin(a) * d));
+      } else {
+        x = margin + Math.random() * (world - 2 * margin);
+        y = margin + Math.random() * (world - 2 * margin);
+      }
       let clear = true;
       for (const s of this.snakes.values()) {
         for (let i = 0; i < s.segs.length; i += 5) {
           const dx = s.segs[i].x - x;
           const dy = s.segs[i].y - y;
-          if (dx * dx + dy * dy < 400 * 400) { clear = false; break; }
+          if (dx * dx + dy * dy < 350 * 350) { clear = false; break; }
         }
         if (!clear) break;
       }
@@ -114,7 +129,7 @@ class Game {
 
   createSnake(name, bot, send, opts = {}) {
     const { spacing, startMass } = this.cfg;
-    const { x, y } = this.findSpawn();
+    const { x, y } = this.findSpawn(!bot);
     const angle = Math.random() * Math.PI * 2;
     const s = {
       id: this.nextId++,
@@ -129,6 +144,7 @@ class Game {
       boost: false,
       boosting: false,
       boostAcc: 0,
+      ignoreInputUntil: 0,
       mass: startMass,
       kills: 0,
       alive: true,
@@ -169,7 +185,7 @@ class Game {
 
   input(snake, angle, boost) {
     if (!snake || !snake.alive) return;
-    if (Number.isFinite(angle)) snake.target = angle;
+    if (Number.isFinite(angle) && this.time >= snake.ignoreInputUntil) snake.target = angle;
     snake.boost = !!boost;
   }
 
@@ -238,6 +254,19 @@ class Game {
     head.x += Math.cos(s.angle) * speed * dt;
     head.y += Math.sin(s.angle) * speed * dt;
 
+    // Bounce off the walls instead of dying. Steering is ignored for a moment so the push-off is clear.
+    const edge = 12;
+    let bounced = false;
+    if (head.x < edge) { head.x = edge; s.angle = Math.PI - s.angle; bounced = true; }
+    else if (head.x > c.world - edge) { head.x = c.world - edge; s.angle = Math.PI - s.angle; bounced = true; }
+    if (head.y < edge) { head.y = edge; s.angle = -s.angle; bounced = true; }
+    else if (head.y > c.world - edge) { head.y = c.world - edge; s.angle = -s.angle; bounced = true; }
+    if (bounced) {
+      s.angle = normAngle(s.angle);
+      s.target = s.angle;
+      s.ignoreInputUntil = this.time + 0.4;
+    }
+
     const sp = c.spacing;
     for (let i = 1; i < s.segs.length; i++) {
       const p = s.segs[i - 1];
@@ -277,15 +306,11 @@ class Game {
   }
 
   collide(list) {
-    const { world, spacing } = this.cfg;
+    const { spacing } = this.cfg;
     const deaths = new Map();
 
     for (const a of list) {
       const h = a.segs[0];
-      if (h.x < 0 || h.y < 0 || h.x > world || h.y > world) {
-        deaths.set(a, { by: null, reason: 'wall' });
-        continue;
-      }
       const ra = radiusOf(a.mass);
       for (const b of list) {
         if (b === a) continue;
@@ -462,6 +487,15 @@ class Game {
         }
       }
       msg.fd = fd;
+    }
+
+    if (p.snapTick % 4 === 1) {
+      msg.mm = [...this.snakes.values()].map((s) => {
+        const h = s.segs[0];
+        const row = [s.id, Math.round(h.x), Math.round(h.y), s.hue, s.bot ? 0 : 1];
+        if (!s.bot) row.push(s.name);
+        return row;
+      });
     }
 
     p.send(JSON.stringify(msg));

@@ -1,6 +1,7 @@
 # pest.mom
 
-![CI](https://github.com/vantagexbt/pest.mom/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/YOUR_GITHUB_NAME/pest-mom/actions/workflows/ci.yml/badge.svg)
+
 **Become the biggest pest on Solana.**
 
 A free multiplayer fly game that runs in the browser. Fly around, eat `$PEST`
@@ -11,8 +12,14 @@ else's tail and you are out.
 - **Make your fly.** Pick a nickname, a tail colour and, if you want, a photo for the fly's head.
 - **Bots keep it lively.** A few AI flies fill the arena when few people are online.
   They are labelled "bot" and step aside as real players join.
-- **Fly brain.** The corner widget is a decorative visualisation of neurons firing when
-  you eat, boost or get in danger. It is a visual effect, not a real AI.
+- **Walls bounce you back.** The edge of the map pushes you away instead of killing you.
+- **Find your friends.** New real players spawn near other real players, the minimap shows every
+  fly (real players have a white ring) and arrows at the screen edge point to players who are off screen.
+- **Fly brain.** The corner widget shows neurons firing when you eat, boost or get in danger,
+  and it works through small maths problems live (Newton's method, π, e, an integral, ...). Each
+  calculation is real but tiny and runs in your browser. It is a visual effect, not an AI.
+- **Result card.** When you are out, the game draws a shareable picture of your result. "Share on X"
+  opens the phone share sheet with the picture, or copies the picture and opens an X post on a computer.
 
 ## Is this legit? Read the code.
 
@@ -70,7 +77,7 @@ A `render.yaml` is included for one-click deploys on Render.
 
 ## Known limits
 
-- One room, plain JSON snapshots (about 50 KB/s per player).
+- One room, plain JSON snapshots (about 55 KB/s per player).
 - No accounts and no report button for photos yet. Add moderation before a big public launch.
 - No per-IP connection limits yet.
 

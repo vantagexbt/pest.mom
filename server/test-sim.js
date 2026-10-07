@@ -19,12 +19,14 @@ let bytes = 0;
 let snapshots = 0;
 let deaths = 0;
 let lastSnap = null;
+let sawMm = false;
 
 let me = game.join('<b>Tester</b>!!', (str) => {
   bytes += str.length;
   const m = JSON.parse(str);
   if (m.t === 's') {
     snapshots++; lastSnap = m;
+    if (m.mm) sawMm = true;
     if (m.fd) for (let i = 2; i < m.fd.length; i += 3) assert.ok(m.fd[i] >= 1 && m.fd[i] <= 40, 'orb value in range');
   }
   if (m.t === 'dead') deaths++;
@@ -51,6 +53,26 @@ for (let i = 0; i < TICKS; i++) {
 }
 
 assert.ok(snapshots > 0, 'snapshots were sent');
+assert.ok(sawMm, 'minimap data was sent');
+
+// Walls: a fly flying into a wall bounces back and survives.
+{
+  const g = new Game({ bots: 0 });
+  const f = g.join('Wall', () => {}, { hue: 10 });
+  f.segs[0].x = 30; f.segs[0].y = 1000; f.angle = Math.PI; f.target = Math.PI;
+  for (let i = 0; i < 80; i++) { g.input(f, Math.PI, false); g.tick(0.05); }
+  assert.ok(f.alive, 'fly survives hitting the wall');
+  assert.ok(f.segs[0].x >= 0 && f.segs[0].x <= g.cfg.world, 'fly stays inside the map');
+}
+
+// Friends find each other: a second real player spawns near the first.
+{
+  const g = new Game({ bots: 0 });
+  const a = g.join('A', () => {}, {});
+  const b = g.join('B', () => {}, {});
+  const d = Math.hypot(a.segs[0].x - b.segs[0].x, a.segs[0].y - b.segs[0].y);
+  assert.ok(d < 1400, 'second player spawns near the first (distance ' + Math.round(d) + ')');
+}
 assert.ok(lastSnap && lastSnap.sn.length >= 1, 'snapshot contains snakes');
 assert.strictEqual(game.humanCount(), me.alive ? 1 : 0);
 
