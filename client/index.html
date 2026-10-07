@@ -173,7 +173,9 @@
     <button id="share" class="btn2" type="button">Share on X</button>
     <button id="save" class="btn2" type="button">Save image</button>
   </div>
-  <p class="note">Share on X uploads this picture to our server for 24 hours so X can show it under your post.</p>
+  <button id="sharePic" class="btn2" type="button" style="width:100%;margin-top:8px" hidden>Share with picture</button>
+  <p class="note">On computers, Share on X uploads this picture to our server for 24 hours so X can show it under your post.</p>
+  <p class="note" id="phoneNote" hidden>"Share with picture" opens the share sheet and attaches the picture. If X leaves the text out, long-press the text field and choose Paste: it is already copied.</p>
   <button id="back" class="link" type="button">Change look</button>
 </section>
 <div id="toast" class="toast" hidden></div>
@@ -973,7 +975,7 @@
     // slogan
     g.textAlign = 'left';
     g.fillStyle = '#b9a8ff'; g.font = `700 32px ${FONT}`;
-    g.fillText('Become the biggest pest on Solana.', 70, 590);
+    g.fillText('Become the biggest pest on Solana.', 70, 552);
     return c;
   }
 
@@ -1032,42 +1034,16 @@
   $('again').addEventListener('click', join);
   $('back').addEventListener('click', () => showMenu(''));
   $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
-  // Uploads the card once and returns the link X turns into a big picture under the post.
-  async function uploadCard() {
-    if (state.lastShareUrl) return state.lastShareUrl;
-    let blob = state.lastCardBlob;
-    if (!blob) throw new Error('no card');
-    if (blob.size > 380 * 1024 && state.lastCardCanvas) {
-      blob = await new Promise((res) => state.lastCardCanvas.toBlob(res, 'image/jpeg', 0.7));
-    }
-    const r = await fetch('/card', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
-    if (!r.ok) throw new Error('upload failed');
-    const { id } = await r.json();
-    state.lastShareUrl = `${location.origin}/s/${id}`;
-    return state.lastShareUrl;
-  }
-
-  // Phones: the share sheet attaches the picture itself, pick X in it.
-  // Computers: X opens with the text and a link whose picture X shows by itself; the picture is also
-  // copied to the clipboard as a backup (Ctrl+V).
+  // Share on X: opens X with the text and a link; X shows the result picture under the post by itself.
+  // On computers the picture is also copied to the clipboard as a backup (Ctrl+V).
   $('share').addEventListener('click', async () => {
     const l = state.last;
     if (!l) return;
     const text = shareText(l);
 
-    if (isTouch && state.lastCardBlob) {
-      const file = new File([state.lastCardBlob], 'pest-mom-result.jpg', { type: 'image/jpeg' });
-      try {
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], text, url: location.origin });
-          return;
-        }
-      } catch (e) { if (e && e.name === 'AbortError') return; }
-    }
-
     let copied = null;
     try {
-      if (state.lastCardCanvas && navigator.clipboard && window.ClipboardItem) {
+      if (!isTouch && state.lastCardCanvas && navigator.clipboard && window.ClipboardItem) {
         const png = new Promise((res) => state.lastCardCanvas.toBlob(res, 'image/png'));
         copied = navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
       }
@@ -1084,6 +1060,40 @@
     if (w) { try { w.location.href = intent; return; } catch {} }
     window.location.href = intent;
   });
+
+  // Phones, alternative: the share sheet attaches the picture file itself. The text is copied as a backup.
+  $('phoneNote').hidden = !isTouch;
+  $('sharePic').hidden = !isTouch;
+  $('sharePic').addEventListener('click', async () => {
+    const l = state.last;
+    if (!l || !state.lastCardBlob) return;
+    const full = `${shareText(l)} ${location.origin}`;
+    try { navigator.clipboard.writeText(full); } catch {}
+    const file = new File([state.lastCardBlob], 'pest-mom-result.jpg', { type: 'image/jpeg' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: full });
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    toast('Press "Save image" and attach it to your post.');
+  });
+
+  // Uploads the card once and returns the link X turns into a big picture under the post.
+  async function uploadCard() {
+    if (state.lastShareUrl) return state.lastShareUrl;
+    let blob = state.lastCardBlob;
+    if (!blob) throw new Error('no card');
+    if (blob.size > 380 * 1024 && state.lastCardCanvas) {
+      blob = await new Promise((res) => state.lastCardCanvas.toBlob(res, 'image/jpeg', 0.7));
+    }
+    const r = await fetch('/card', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+    if (!r.ok) throw new Error('upload failed');
+    const { id } = await r.json();
+    state.lastShareUrl = `${location.origin}/s/${id}`;
+    return state.lastShareUrl;
+  }
+
   $('save').addEventListener('click', () => {
     if (!state.lastCardUrl) return;
     const a = document.createElement('a');

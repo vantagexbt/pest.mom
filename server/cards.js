@@ -87,11 +87,11 @@ function page(req, res, id) {
   const base = `${proto}://${host}`;
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Think you can beat me on pest.mom?</title>
+<title>Beat me on pest.mom</title>
 <meta name="description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="pest.mom">
-<meta property="og:title" content="Think you can beat me on pest.mom?">
+<meta property="og:title" content="Beat me on pest.mom">
 <meta property="og:description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
 <meta property="og:image" content="${base}/c/${id}.jpg">
 <meta property="og:image:type" content="image/jpeg">
@@ -99,7 +99,7 @@ function page(req, res, id) {
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="${base}/s/${id}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Think you can beat me on pest.mom?">
+<meta name="twitter:title" content="Beat me on pest.mom">
 <meta name="twitter:description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
 <meta name="twitter:image" content="${base}/c/${id}.jpg">
 <meta name="twitter:image:alt" content="A pest.mom result card">
