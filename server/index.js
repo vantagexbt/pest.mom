@@ -5,7 +5,6 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const { Game } = require('./game');
-const cards = require('./cards');
 
 const PORT = Number(process.env.PORT) || 3000;
 const BOTS = process.env.BOTS !== undefined ? Number(process.env.BOTS) : 12;
@@ -38,8 +37,6 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     return res.end('ok');
   }
-
-  if (cards.handle(req, res, pathname)) return;
 
   if (pathname === '/') pathname = '/index.html';
   const file = path.normalize(path.join(CLIENT_DIR, pathname));

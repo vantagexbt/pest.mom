@@ -1,8 +1,10 @@
 # pest.mom
 
-![CI](https://github.com/vantagexbt/pest-mom/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/vantagexbt/pest.mom/actions/workflows/ci.yml/badge.svg)
 
 **Become the biggest pest on Solana.**
+
+**Play: https://pest.mom**
 
 A free multiplayer fly game that runs in the browser. Fly around, eat `$PEST`
 orbs, grow a tail of coins and make other flies crash into it. Hit someone
@@ -18,8 +20,10 @@ else's tail and you are out.
 - **Fly brain.** The corner widget shows neurons firing when you eat, boost or get in danger,
   and it works through small maths problems live (Newton's method, π, e, an integral, ...). Each
   calculation is real but tiny and runs in your browser. It is a visual effect, not an AI.
-- **Result card.** When you are out, the game draws a shareable picture of your result. "Share on X"
-  opens the phone share sheet with the picture, or copies the picture and opens an X post on a computer.
+- **Result card.** When you are out, the game draws a shareable picture with a funny title
+  ("Baby Pest", "Certified Pest", "King of Pests"...) and a challenge. On phones "Share on X" opens the
+  share sheet with the picture attached; on computers it opens a ready post on X and copies the picture
+  so you can paste it with Ctrl+V.
 
 ## Is this legit? Read the code.
 
@@ -31,6 +35,8 @@ This repository is the **entire** game, client and server. Things you can verify
   opens a prefilled post link when you click it; the game never connects to your X account.
 - Photos are shrunk to a tiny JPEG in your browser and sent to the server, which only forwards
   them to other players in the arena. Nothing is stored on disk.
+- The result picture is drawn in your browser. Pressing "Share on X" never uploads it anywhere:
+  on phones it goes through the share sheet, on computers it is copied to your clipboard.
 - `$PEST` is a memecoin. The game does not affect its price and nothing here is financial advice.
   The official contract address will be listed here once it exists: `TBA`.
 
