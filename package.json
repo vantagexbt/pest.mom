@@ -1,0 +1,15 @@
+{
+  "name": "pest-mom",
+  "version": "0.2.0",
+  "description": "Free multiplayer fly game. Eat $PEST orbs, grow your tail, make the others crash into it.",
+  "private": true,
+  "license": "MIT",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node server/test-sim.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

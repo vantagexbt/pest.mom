@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#08070d">
+<title>pest.mom: become the biggest pest on Solana</title>
+<meta name="description" content="Free multiplayer fly game. Eat $PEST orbs, grow your tail, make the others crash into it.">
+<meta property="og:title" content="pest.mom">
+<meta property="og:description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
+<!-- Social preview image (needs the final public domain): -->
+<meta property="og:image" content="https://pest.mom/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08070d;
+    --ink: #f1eefc;
+    --ink-dim: rgba(241, 238, 252, .62);
+    --violet: #7c5cff;
+    --violet-soft: rgba(124, 92, 255, .16);
+    --coral: #ff5c7a;
+    --wing: #b5dcfa;
+    --panel: rgba(16, 14, 28, .88);
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas#c { position: fixed; inset: 0; display: block; }
+  button, input { font: inherit; color: inherit; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+
+  .panel {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(380px, calc(100vw - 24px));
+    max-height: calc(100% - 20px); overflow: auto;
+    padding: 24px 22px 20px;
+    background: var(--panel);
+    border: 1px solid rgba(124, 92, 255, .35);
+    border-radius: 20px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .brand img { width: 52px; height: 52px; border-radius: 50%; flex: none; }
+  h1 { margin: 0; font-size: 38px; line-height: 1; font-weight: 700; letter-spacing: -.04em; }
+  h2 { margin: 0 0 6px; font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -.03em; }
+  .slogan { margin: 0 0 12px; color: #b9a8ff; font-weight: 600; font-size: 14px; }
+  .lead { margin: 0 0 16px; color: var(--ink-dim); font-size: 13px; line-height: 1.5; }
+  .label { margin: 0 0 6px; font-size: 12px; color: var(--ink-dim); }
+  .field {
+    width: 100%; padding: 13px 16px; margin-bottom: 12px;
+    background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 12px; font-size: 16px; -webkit-user-select: text; user-select: text;
+  }
+  #preview { display: block; width: 100%; height: auto; margin-bottom: 8px; background: rgba(255, 255, 255, .04); border-radius: 12px; }
+  .row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .btn2 {
+    flex: 1; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600;
+    background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .16);
+  }
+  #hue {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 14px; margin: 0 0 16px;
+    border-radius: 7px; touch-action: pan-x; cursor: pointer;
+    background: linear-gradient(90deg, hsl(0,78%,56%), hsl(60,78%,56%), hsl(120,78%,56%),
+                                       hsl(180,78%,56%), hsl(240,78%,56%), hsl(300,78%,56%), hsl(360,78%,56%));
+  }
+  #hue::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 3px solid var(--bg); box-shadow: 0 0 0 2px #fff; }
+  #hue::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 3px solid var(--bg); }
+  .btn {
+    width: 100%; padding: 14px 16px; border: 0; border-radius: 12px; cursor: pointer;
+    background: var(--violet); color: #fff; font-weight: 600; font-size: 16px;
+    box-shadow: 0 8px 24px rgba(124, 92, 255, .35);
+  }
+  .btn:active { transform: translateY(1px); }
+  .link { display: block; width: 100%; margin-top: 10px; padding: 8px; background: none; border: 0; color: var(--ink-dim); cursor: pointer; font-size: 13px; }
+  .note { margin: 12px 0 0; color: var(--ink-dim); font-size: 11.5px; line-height: 1.5; }
+  .err { margin: 10px 0 0; color: var(--coral); font-size: 13px; min-height: 1em; }
+
+  .stats { display: flex; gap: 8px; margin: 14px 0 16px; }
+  .stat { flex: 1; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); }
+  .stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .stat span { font-size: 11px; color: var(--ink-dim); }
+
+  .pill {
+    position: fixed; top: calc(14px + var(--safe-t)); left: calc(14px + var(--safe-l));
+    padding: 6px 14px; border-radius: 10px; font-weight: 600; font-size: 18px;
+    background: var(--violet-soft); border: 1px solid rgba(124, 92, 255, .7); font-variant-numeric: tabular-nums;
+  }
+  .pill2 {
+    position: fixed; top: calc(56px + var(--safe-t)); left: calc(14px + var(--safe-l));
+    padding: 3px 10px; border-radius: 8px; font-size: 12px; color: var(--ink-dim); background: rgba(8, 7, 13, .55);
+  }
+  #lb {
+    position: fixed; top: calc(14px + var(--safe-t)); right: calc(14px + var(--safe-r));
+    margin: 0; padding: 8px 10px; list-style: none; min-width: 150px;
+    background: rgba(8, 7, 13, .55); border-radius: 12px; font-size: 12px;
+  }
+  #lb li { display: flex; justify-content: space-between; gap: 14px; padding: 2px 0; color: var(--ink-dim); }
+  #lb li.me { color: var(--ink); font-weight: 600; }
+  #lb li.foot { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,.1); font-size: 11px; justify-content: center; }
+  #lb li span:first-child { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #lb em { font-style: normal; opacity: .55; font-size: 10px; }
+  #boostBtn {
+    position: fixed; right: calc(18px + var(--safe-r)); bottom: calc(22px + var(--safe-b));
+    width: 84px; height: 84px; border-radius: 50%; border: 2px solid var(--violet);
+    background: var(--violet-soft); font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  #boostBtn:active, #boostBtn.on { background: var(--violet); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" hidden>
+  <div class="pill" id="score">10</div>
+  <div class="pill2" id="rank"></div>
+  <ol id="lb" aria-label="Leaderboard"></ol>
+  <button id="boostBtn" hidden>Boost</button>
+</div>
+
+<main id="menu" class="panel">
+  <div class="brand"><img src="coin.png" alt="" width="52" height="52"><h1>pest.mom</h1></div>
+  <p class="slogan">Become the biggest pest on Solana.</p>
+  <p class="lead">Fly around, eat <b>$PEST</b> orbs and grow your tail. Make other flies crash into it. Hit someone's tail and you're out.</p>
+  <label class="label" for="name">Your nickname</label>
+  <input id="name" class="field" maxlength="16" placeholder="@yournick" autocomplete="off">
+  <canvas id="preview" width="640" height="170"></canvas>
+  <div class="row">
+    <button id="photoBtn" class="btn2" type="button">Add your photo</button>
+    <button id="photoClear" class="btn2" type="button" hidden>Remove photo</button>
+  </div>
+  <input id="photo" type="file" accept="image/*" hidden>
+  <p class="label">Tail colour</p>
+  <input id="hue" type="range" min="0" max="359" step="1" value="265" aria-label="Tail colour">
+  <button id="play" class="btn">Play</button>
+  <p class="err" id="err" role="alert"></p>
+  <p class="note" id="hint">Free to play. No wallet, no real money. Move the mouse to steer, hold click or Space to boost (costs length). Your photo is shrunk to a tiny avatar and shown to other players while you play.</p>
+</main>
+
+<section id="dead" class="panel" hidden>
+  <h2>You're out</h2>
+  <p class="lead" id="deadReason"></p>
+  <div class="stats">
+    <div class="stat"><b id="deadScore">0</b><span>Final length</span></div>
+    <div class="stat"><b id="deadKills">0</b><span>Flies cut off</span></div>
+    <div class="stat"><b id="deadTime">0:00</b><span>Time alive</span></div>
+  </div>
+  <button id="again" class="btn">Play again</button>
+  <button id="share" class="link" type="button">Share result on X</button>
+  <button id="back" class="link" type="button">Change look</button>
+</section>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('c');
+  const ctx = canvas.getContext('2d');
+  const TAU = Math.PI * 2;
+
+  // ---------- memecoin settings ----------
+  const COIN = {
+    name: '$PEST',          // text written inside every orb
+    image: 'coin.png',      // the coin picture (square PNG) in the client folder
+    color: '#ffd23c',       // glow / ring colour of the orbs
+  };
+
+  const orbCache = new Map();
+  const segCache = new Map();
+  const coinImg = new Image();
+  let coinReady = false;
+  coinImg.onload = () => { coinReady = true; orbCache.clear(); segCache.clear(); };
+  coinImg.src = COIN.image;
+
+  // ---------- state ----------
+  const state = {
+    mode: 'menu',   // 'menu' | 'play' | 'dead'
+    ws: null, id: 0, world: 3200,
+    snakes: new Map(), food: [], lb: [], mass: 10,
+    rank: [0, 0], online: 0, last: null,
+  };
+  const cam = { x: 1600, y: 1600 };
+  const pointer = { x: 0, y: 0, has: false };
+  let boosting = false;
+  let W = 0, H = 0, DPR = 1, scale = 1, driftT = 0, statusT = 0;
+  const safe = { t: 0, b: 0, l: 0, r: 0 };
+
+  const radiusOf = (m) => Math.min(24, 8 + Math.sqrt(m) * 0.6);
+
+  // iOS notch / home bar insets, measured once so canvas HUD parts can respect them
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;' +
+    'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+  document.body.appendChild(probe);
+
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    scale = Math.hypot(W, H) / 1500;
+    const cs = getComputedStyle(probe);
+    safe.t = parseFloat(cs.paddingTop) || 0; safe.r = parseFloat(cs.paddingRight) || 0;
+    safe.b = parseFloat(cs.paddingBottom) || 0; safe.l = parseFloat(cs.paddingLeft) || 0;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- background hex tile ----------
+  const hexPattern = (() => {
+    const w = 70, h = 121, R = 40.4;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(255,255,255,.024)';
+    g.strokeStyle = 'rgba(255,255,255,.035)';
+    g.lineWidth = 1;
+    const hex = (cx, cy) => {
+      g.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 6 + i * Math.PI / 3;
+        g.lineTo(cx + Math.cos(a) * (R - 3), cy + Math.sin(a) * (R - 3));
+      }
+      g.closePath(); g.fill(); g.stroke();
+    };
+    [[0, 0], [w, 0], [w / 2, h / 2], [0, h], [w, h]].forEach(([x, y]) => hex(x, y));
+    return ctx.createPattern(c, 'repeat');
+  })();
+
+  // ---------- coin orbs (pre-rendered sprites, one per size) ----------
+  const orbRadius = (v) => Math.min(22, 11 + v * 1.7);
+
+  function drawCoinFace(g, x, y, r) {
+    if (coinReady) {
+      g.save();
+      g.beginPath(); g.arc(x, y, r, 0, TAU); g.clip();
+      g.drawImage(coinImg, x - r, y - r, r * 2, r * 2);
+      g.restore();
+    } else {
+      g.fillStyle = COIN.color;
+      g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      g.strokeStyle = '#a97800'; g.lineWidth = Math.max(1, r * 0.16);
+      g.beginPath(); g.arc(x, y, r * 0.66, 0, TAU); g.stroke();
+    }
+  }
+
+  function makeOrb(v) {
+    const r = orbRadius(v);
+    const half = r * 1.8;
+    const OS = 2;
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.ceil(half * 2 * OS);
+    const g = c.getContext('2d');
+    g.scale(OS, OS);
+    g.translate(half, half);
+    const grad = g.createRadialGradient(0, 0, r * 0.8, 0, 0, half);
+    grad.addColorStop(0, COIN.color + '55');
+    grad.addColorStop(1, COIN.color + '00');
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(0, 0, half, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(18,14,34,.92)';
+    g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+    g.strokeStyle = COIN.color; g.lineWidth = 2; g.stroke();
+    drawCoinFace(g, 0, -r * 0.2, r * 0.56);
+    let fs = r * 0.42;
+    g.font = `700 ${fs}px Sora, system-ui, sans-serif`;
+    const maxW = r * 1.5;
+    const tw = g.measureText(COIN.name).width;
+    if (tw > maxW) { fs *= maxW / tw; g.font = `700 ${fs}px Sora, system-ui, sans-serif`; }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#fff';
+    g.fillText(COIN.name, 0, r * 0.58);
+    return { c, half };
+  }
+
+  function drawOrb(x, y, v) {
+    const key = Math.max(1, Math.min(12, Math.round(v)));
+    let o = orbCache.get(key);
+    if (!o) { o = makeOrb(key); orbCache.set(key, o); }
+    ctx.drawImage(o.c, x - o.half, y - o.half, o.half * 2, o.half * 2);
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => orbCache.clear());
+
+  // ---------- avatars (player photos) ----------
+  const avatars = new Map();            // snake id -> Image (other players)
+  const myAvatarImg = new Image();
+  let myAvatar = null;                  // data URL of my own photo
+
+  function setAvatar(id, dataUrl) {
+    const im = new Image();
+    im.src = dataUrl;
+    avatars.set(id, im);
+    if (avatars.size > 300) avatars.delete(avatars.keys().next().value);
+  }
+  const imgOk = (im) => !!im && im.complete && im.naturalWidth > 0;
+
+  function setMyAvatar(url) {
+    myAvatar = url || null;
+    if (url) myAvatarImg.src = url; else myAvatarImg.removeAttribute('src');
+    $('photoClear').hidden = !url;
+    $('photoBtn').textContent = url ? 'Change photo' : 'Add your photo';
+  }
+
+  // Shrinks a chosen photo to a small centre-cropped JPEG so it is cheap to send to everyone.
+  function makeAvatar(img) {
+    const w = img.naturalWidth, h = img.naturalHeight, s = Math.min(w, h);
+    for (const [size, q] of [[64, 0.8], [64, 0.6], [48, 0.6], [40, 0.5]]) {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      c.getContext('2d').drawImage(img, (w - s) / 2, (h - s) / 2, s, s, 0, 0, size, size);
+      const url = c.toDataURL('image/jpeg', q);
+      if (url.length <= 12000) return url;
+    }
+    return null;
+  }
+
+  $('photoBtn').addEventListener('click', () => $('photo').click());
+  $('photoClear').addEventListener('click', () => setMyAvatar(null));
+  $('photo').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const a = makeAvatar(img);
+      if (a) { setMyAvatar(a); $('err').textContent = ''; }
+      else $('err').textContent = 'That photo could not be shrunk. Try another one.';
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); $('err').textContent = 'Could not read that photo.'; };
+    img.src = url;
+  });
+
+  // ---------- the fly ----------
+  function segSprite(hue, r) {
+    const rr = Math.max(3, Math.round(r));
+    const key = hue + '_' + rr;
+    let s = segCache.get(key);
+    if (!s) {
+      if (segCache.size > 400) segCache.clear();
+      const OS = 2, half = rr + 2;
+      const c = document.createElement('canvas');
+      c.width = c.height = Math.ceil(half * 2 * OS);
+      const g = c.getContext('2d');
+      g.scale(OS, OS);
+      g.translate(half, half);
+      g.fillStyle = `hsl(${hue},78%,48%)`;
+      g.beginPath(); g.arc(0, 0, rr, 0, TAU); g.fill();
+      g.strokeStyle = `hsl(${hue},70%,22%)`; g.lineWidth = 1.5; g.stroke();
+      drawCoinFace(g, 0, 0, rr * 0.58);
+      s = { c, half };
+      segCache.set(key, s);
+    }
+    return s;
+  }
+
+  // d = flat [x,y,x,y,...] points, head first. Used in the game and in the menu preview.
+  function drawFly(g, d, r, hue, boost, av, id, now) {
+    const n = d.length >> 1;
+    // tail: a chain of coin discs in the player's colour
+    for (let i = n - 1; i >= 1; i--) {
+      const p = n > 1 ? i / (n - 1) : 0;
+      const rr = r * (1 - 0.35 * Math.max(0, (p - 0.7) / 0.3));
+      const s = segSprite(hue, rr);
+      g.drawImage(s.c, d[i * 2] - s.half, d[i * 2 + 1] - s.half, s.half * 2, s.half * 2);
+    }
+
+    const hx = d[0], hy = d[1];
+    const ang = n > 1 ? Math.atan2(hy - d[3], hx - d[2]) : 0;
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+
+    // wings (flap faster while boosting)
+    const flap = Math.sin(now / (boost ? 28 : 55) + id * 1.7);
+    const tx = n > 1 ? d[2] : hx, ty = n > 1 ? d[3] : hy;
+    g.fillStyle = 'rgba(181,220,250,.82)';
+    g.strokeStyle = '#7ab8f5';
+    g.lineWidth = 1.5;
+    for (const sgn of [-1, 1]) {
+      g.save();
+      g.translate(tx, ty);
+      g.rotate(ang + sgn * (Math.PI / 2 + 0.5 + 0.22 * flap));
+      g.beginPath(); g.ellipse(r * 1.25, 0, r * 1.45, r * 0.62, 0, 0, TAU); g.fill(); g.stroke();
+      g.restore();
+    }
+
+    // head
+    const hr = r * 1.25;
+    if (imgOk(av)) {
+      g.fillStyle = `hsl(${hue},78%,60%)`;
+      g.beginPath(); g.arc(hx, hy, hr + 2.5, 0, TAU); g.fill();
+      g.save();
+      g.beginPath(); g.arc(hx, hy, hr, 0, TAU); g.clip();
+      g.drawImage(av, hx - hr, hy - hr, hr * 2, hr * 2);
+      g.restore();
+    } else {
+      g.fillStyle = '#050505';
+      g.strokeStyle = '#555';
+      g.lineWidth = 1.5;
+      g.beginPath(); g.arc(hx, hy, hr, 0, TAU); g.fill(); g.stroke();
+      // little snout
+      g.beginPath();
+      g.moveTo(hx + ca * hr * 0.75 - sa * hr * 0.17, hy + sa * hr * 0.75 + ca * hr * 0.17);
+      g.lineTo(hx + ca * hr * 1.45 - sa * hr * 0.28, hy + sa * hr * 1.45 + ca * hr * 0.28);
+      g.lineTo(hx + ca * hr * 1.45 + sa * hr * 0.28, hy + sa * hr * 1.45 - ca * hr * 0.28);
+      g.lineTo(hx + ca * hr * 0.75 + sa * hr * 0.17, hy + sa * hr * 0.75 - ca * hr * 0.17);
+      g.closePath(); g.fill(); g.stroke();
+      // big googly eyes
+      for (const sgn of [-1, 1]) {
+        const ex = hx + ca * hr * 0.3 + Math.cos(ang + sgn * Math.PI / 2) * hr * 0.44;
+        const ey = hy + sa * hr * 0.3 + Math.sin(ang + sgn * Math.PI / 2) * hr * 0.44;
+        g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 1.5;
+        g.beginPath(); g.arc(ex, ey, hr * 0.54, 0, TAU); g.fill(); g.stroke();
+        const px = ex + ca * hr * 0.2, py = ey + sa * hr * 0.2;
+        g.fillStyle = '#000';
+        g.beginPath(); g.arc(px, py, hr * 0.3, 0, TAU); g.fill();
+        g.fillStyle = '#fff';
+        g.beginPath(); g.arc(px + hr * 0.1, py - hr * 0.1, hr * 0.1, 0, TAU); g.fill();
+      }
+    }
+  }
+
+  function drawPreview(now) {
+    const pc = $('preview'), g = pc.getContext('2d');
+    g.clearRect(0, 0, pc.width, pc.height);
+    const pts = new Float32Array(2 * 14);
+    for (let i = 0; i < 14; i++) {
+      pts[i * 2] = 480 - i * 24;
+      pts[i * 2 + 1] = 90 + Math.sin(i * 0.6 + now / 600) * 22;
+    }
+    drawFly(g, pts, 20, +$('hue').value, false, myAvatarImg, 0, now);
+  }
+
+  // ---------- the fly brain (decorative neural activity) ----------
+  const brain = { nodes: [], edges: [], adj: [], q: [], left: [], right: [], nextIdle: 0, status: 'buzzing' };
+  (function initBrain() {
+    let seed = 20261007;
+    const rnd = () => {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+    let guard = 0;
+    while (brain.nodes.length < 44 && guard++ < 8000) {
+      const x = rnd() * 2 - 1, y = rnd() * 2 - 1;
+      const lobe = Math.abs(x) - 0.5;              // two hemispheres
+      if ((lobe * lobe) / (0.5 * 0.5) + (y * y) / (0.8 * 0.8) > 1) continue;
+      if (brain.nodes.some((n) => Math.hypot(n.x - x, n.y - y) < 0.2)) continue;
+      brain.nodes.push({ x, y, e: 0, refr: 0, ph: rnd() * TAU });
+    }
+    const seen = new Set();
+    brain.nodes.forEach((a, i) => {
+      brain.nodes
+        .map((b, j) => ({ j, d: Math.hypot(a.x - b.x, a.y - b.y) }))
+        .filter((o) => o.j !== i)
+        .sort((p, q) => p.d - q.d)
+        .slice(0, 3)
+        .forEach((o) => {
+          const k = i < o.j ? i + '-' + o.j : o.j + '-' + i;
+          if (!seen.has(k)) { seen.add(k); brain.edges.push({ a: Math.min(i, o.j), b: Math.max(i, o.j), e: 0 }); }
+        });
+    });
+    brain.adj = brain.nodes.map(() => []);
+    brain.edges.forEach((e, idx) => {
+      brain.adj[e.a].push({ n: e.b, edge: idx });
+      brain.adj[e.b].push({ n: e.a, edge: idx });
+    });
+    brain.nodes.forEach((n, i) => (n.x < 0 ? brain.left : brain.right).push(i));
+  })();
+
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  function brainFire(i, ttl, now) { brain.q.push({ n: i, at: now, ttl, from: -1, edge: -1 }); }
+
+  function brainStep(now, dt) {
+    for (const n of brain.nodes) n.e = Math.max(0, n.e - dt * 1.4);
+    for (const e of brain.edges) e.e = Math.max(0, e.e - dt * 2);
+    if (now > brain.nextIdle) {
+      brain.nextIdle = now + 220 + Math.random() * 500;
+      brainFire(Math.floor(Math.random() * brain.nodes.length), 3, now);
+    }
+    const next = [];
+    for (const p of brain.q) {
+      if (p.at > now) { next.push(p); continue; }
+      const node = brain.nodes[p.n];
+      if (now < node.refr) continue;
+      node.e = 1; node.refr = now + 380;
+      if (p.edge >= 0) brain.edges[p.edge].e = 1;
+      if (p.ttl > 0) {
+        for (const nb of brain.adj[p.n]) {
+          if (nb.n === p.from) continue;
+          next.push({ n: nb.n, at: now + 80 + Math.random() * 90, ttl: p.ttl - 1, from: p.n, edge: nb.edge });
+        }
+      }
+    }
+    brain.q = next.length > 500 ? next.slice(-500) : next;
+  }
+
+  function computeStatus(now) {
+    const me = state.snakes.get(state.id);
+    if (!me || state.mode !== 'play') { brain.status = 'idle'; return; }
+    const hx = me.dx[0], hy = me.dx[1];
+    let danger = false;
+    for (const s of state.snakes.values()) {
+      if (s === me) continue;
+      const d = s.dx;
+      for (let i = 0; i < d.length; i += 2) {
+        const dx = d[i] - hx, dy = d[i + 1] - hy;
+        if (dx * dx + dy * dy < 150 * 150) { danger = true; break; }
+      }
+      if (danger) break;
+    }
+    let near = 0;
+    const f = state.food;
+    for (let i = 0; i < f.length; i += 3) {
+      const dx = f[i] - hx, dy = f[i + 1] - hy;
+      if (dx * dx + dy * dy < 320 * 320) near++;
+    }
+    if (danger) { brain.status = 'panic!'; brainFire(pick(brain.right), 4, now); }
+    else if (boosting) brain.status = 'zoom!';
+    else if (near >= 5) brain.status = 'snack time';
+    else brain.status = 'buzzing';
+  }
+
+  function drawBrain(now) {
+    const S = Math.round(Math.max(128, Math.min(190, Math.min(W, H) * 0.3)));
+    const x0 = 14 + safe.l, y0 = H - S - 16 - safe.b;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,7,13,.72)';
+    ctx.strokeStyle = 'rgba(124,92,255,.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x0, y0, S, S, 16); ctx.fill(); ctx.stroke();
+
+    const cx = x0 + S / 2, cy = y0 + S / 2 - 8;
+    const RX = S * 0.46, RY = S * 0.37;
+    const px = (n) => cx + n.x * RX, py = (n) => cy + n.y * RY;
+
+    // hemispheres + fold lines
+    ctx.fillStyle = 'rgba(124,92,255,.07)';
+    ctx.strokeStyle = 'rgba(160,140,255,.35)';
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + sgn * RX * 0.5, cy, RX * 0.52, RY * 0.84, 0, 0, TAU);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(160,140,255,.14)';
+    for (const sgn of [-1, 1]) {
+      for (let k = -2; k <= 2; k++) {
+        ctx.beginPath();
+        const yy = cy + k * RY * 0.3;
+        ctx.moveTo(cx + sgn * RX * 0.12, yy);
+        ctx.quadraticCurveTo(cx + sgn * RX * 0.5, yy + (k % 2 ? 9 : -9), cx + sgn * RX * 0.9, yy);
+        ctx.stroke();
+      }
+    }
+
+    // glowing connections and neurons
+    ctx.globalCompositeOperation = 'lighter';
+    for (const e of brain.edges) {
+      const a = brain.nodes[e.a], b = brain.nodes[e.b];
+      ctx.strokeStyle = e.e > 0.02
+        ? `rgba(110,225,255,${0.12 + e.e * 0.85})`
+        : 'rgba(124,92,255,.22)';
+      ctx.lineWidth = 0.8 + e.e * 1.6;
+      ctx.beginPath(); ctx.moveTo(px(a), py(a)); ctx.lineTo(px(b), py(b)); ctx.stroke();
+    }
+    for (const n of brain.nodes) {
+      const x = px(n), y = py(n);
+      const base = 0.35 + 0.15 * Math.sin(now / 900 + n.ph);
+      if (n.e > 0.03) {
+        ctx.fillStyle = `rgba(110,225,255,${n.e * 0.3})`;
+        ctx.beginPath(); ctx.arc(x, y, 3 + n.e * 8, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = n.e > 0.03 ? `rgba(190,245,255,${0.5 + n.e * 0.5})` : `rgba(170,150,255,${base})`;
+      ctx.beginPath(); ctx.arc(x, y, 1.6 + n.e * 1.8, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.textAlign = 'center';
+    ctx.font = '600 10px Sora, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(241,238,252,.7)';
+    ctx.fillText('pest brain · ' + brain.status, x0 + S / 2, y0 + S - 9);
+  }
+
+  // ---------- networking ----------
+  function connect(onOpen) {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}`);
+    state.ws = ws;
+    ws.onopen = onOpen;
+    ws.onmessage = (e) => {
+      let m;
+      try { m = JSON.parse(e.data); } catch { return; }
+      if (m.t === 's') onSnapshot(m);
+      else if (m.t === 'av') setAvatar(m.i, m.d);
+      else if (m.t === 'welcome') onWelcome(m);
+      else if (m.t === 'dead') onDead(m);
+      else if (m.t === 'full') showMenu('The arena is full. Try again in a moment.');
+    };
+    ws.onclose = () => {
+      if (state.ws === ws) { state.ws = null; showMenu('Connection lost. Press Play to reconnect.'); }
+    };
+    ws.onerror = () => {};
+  }
+
+  function join() {
+    const name = $('name').value.trim() || 'Player';
+    const hue = +$('hue').value;
+    try { localStorage.setItem('pest.profile', JSON.stringify({ name: $('name').value, hue, av: myAvatar })); } catch {}
+    $('err').textContent = '';
+    const msg = { t: 'join', name, hue };
+    if (myAvatar) msg.av = myAvatar;
+    const send = () => state.ws.send(JSON.stringify(msg));
+    if (state.ws && state.ws.readyState === 1) send();
+    else connect(send);
+  }
+
+  function onWelcome(m) {
+    state.id = m.id; state.world = m.world; state.mode = 'play';
+    state.snakes.clear(); state.food = [];
+    $('menu').hidden = true; $('dead').hidden = true; $('hud').hidden = false;
+  }
+
+  function onSnapshot(m) {
+    const now = performance.now();
+    const seen = new Set();
+    for (const d of m.sn) {
+      seen.add(d.i);
+      let s = state.snakes.get(d.i);
+      if (!s) { s = { id: d.i, dx: null }; state.snakes.set(d.i, s); }
+      s.name = d.n; s.hue = d.h; s.mass = d.m; s.boost = d.b; s.bot = d.bt; s.t = d.s;
+      if (!s.dx) {
+        s.dx = Float32Array.from(d.s);
+      } else if (s.dx.length !== d.s.length) {
+        const nd = new Float32Array(d.s.length);
+        for (let i = 0; i < nd.length; i++) nd[i] = i < s.dx.length ? s.dx[i] : d.s[i];
+        s.dx = nd;
+      }
+    }
+    for (const id of state.snakes.keys()) if (!seen.has(id)) state.snakes.delete(id);
+    if (m.fd) state.food = m.fd;
+    state.lb = m.lb;
+    state.rank = m.rk || state.rank;
+    state.online = m.on || 0;
+    const me = state.snakes.get(state.id);
+    if (me) {
+      if (me.mass > state.mass + 0.35 && state.mode === 'play') brainFire(pick(brain.left), 5, now);  // ate something
+      state.mass = me.mass;
+    }
+  }
+
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+  function onDead(m) {
+    state.mode = 'dead'; boosting = false;
+    state.last = { score: m.score, kills: m.kills };
+    $('deadScore').textContent = m.score;
+    $('deadKills').textContent = m.kills;
+    $('deadTime').textContent = fmtTime(m.time || 0);
+    const why = m.reason === 'wall' ? 'You hit the edge of the map.' :
+      m.by ? `${m.by} cut you off.` : 'You flew into another tail.';
+    $('deadReason').textContent = m.rank ? `${why} You finished #${m.rank} of ${m.of}.` : why;
+    $('dead').hidden = false;
+  }
+
+  function showMenu(msg) {
+    state.mode = 'menu';
+    $('hud').hidden = true; $('dead').hidden = true; $('menu').hidden = false;
+    $('err').textContent = msg || '';
+  }
+
+  // ---------- input ----------
+  window.addEventListener('pointermove', (e) => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.has = true; });
+  canvas.addEventListener('pointerdown', (e) => {
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.has = true;
+    if (e.pointerType === 'mouse' && state.mode === 'play') boosting = true;
+  });
+  window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') boosting = false; });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && state.mode === 'play') { boosting = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e) => { if (e.code === 'Space') boosting = false; });
+
+  const boostBtn = $('boostBtn');
+  if (window.matchMedia('(pointer: coarse)').matches) {
+    boostBtn.hidden = false;
+    $('hint').textContent = 'Free to play. No wallet, no real money. Drag your finger to steer, hold Boost to speed up (costs length). Your photo is shrunk to a tiny avatar and shown to other players while you play.';
+  }
+  const setBoost = (on) => {
+    if (on && !boosting) for (let i = 0; i < 3; i++) brainFire(Math.floor(Math.random() * brain.nodes.length), 3, performance.now());
+    boosting = on; boostBtn.classList.toggle('on', on);
+  };
+  boostBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); setBoost(true); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => boostBtn.addEventListener(ev, () => setBoost(false)));
+
+  setInterval(() => {
+    if (state.mode !== 'play' || !state.ws || state.ws.readyState !== 1 || !pointer.has) return;
+    const a = Math.atan2(pointer.y - H / 2, pointer.x - W / 2);
+    state.ws.send(JSON.stringify({ t: 'in', a: Math.round(a * 1000) / 1000, b: boosting ? 1 : 0 }));
+  }, 50);
+
+  // ---------- menu wiring ----------
+  try {
+    const p = JSON.parse(localStorage.getItem('pest.profile') || '{}');
+    if (p.name) $('name').value = p.name;
+    if (Number.isInteger(p.hue)) $('hue').value = p.hue;
+    if (typeof p.av === 'string' && p.av.startsWith('data:image/jpeg;base64,')) setMyAvatar(p.av);
+  } catch {}
+  $('play').addEventListener('click', join);
+  $('again').addEventListener('click', join);
+  $('back').addEventListener('click', () => showMenu(''));
+  $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+  $('share').addEventListener('click', () => {
+    const l = state.last || { score: 0, kills: 0 };
+    const text = `I grew to ${l.score} on pest.mom and cut off ${l.kills} flies. Become the biggest pest on Solana.`;
+    window.open('https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(location.origin),
+      '_blank', 'noopener');
+  });
+
+  // ---------- leaderboard ----------
+  const lbEl = $('lb');
+  let lastLb = 0;
+  function renderLeaderboard(now) {
+    if (now - lastLb < 300) return;
+    lastLb = now;
+    lbEl.textContent = '';
+    for (const [name, score, id, bot] of state.lb) {
+      const li = document.createElement('li');
+      if (id === state.id) li.className = 'me';
+      const a = document.createElement('span'); a.textContent = name;
+      if (bot) { const t = document.createElement('em'); t.textContent = ' bot'; a.append(t); }
+      const b = document.createElement('span'); b.textContent = score;
+      li.append(a, b);
+      lbEl.append(li);
+    }
+    const foot = document.createElement('li');
+    foot.className = 'foot';
+    foot.textContent = `${state.online} online · ${state.rank[1]} flies`;
+    lbEl.append(foot);
+    $('score').textContent = Math.round(state.mass);
+    $('rank').textContent = state.rank[0] ? `Rank ${state.rank[0]} of ${state.rank[1]}` : '';
+  }
+
+  // ---------- update + draw ----------
+  function update(dt, now) {
+    const k = 1 - Math.exp(-dt * 18);
+    for (const s of state.snakes.values()) {
+      const d = s.dx, t = s.t;
+      for (let i = 0; i < d.length; i++) d[i] += (t[i] - d[i]) * k;
+    }
+    const me = state.snakes.get(state.id);
+    if (state.mode === 'menu') {
+      driftT += dt;
+      cam.x = state.world / 2 + Math.cos(driftT * 0.05) * 600;
+      cam.y = state.world / 2 + Math.sin(driftT * 0.07) * 600;
+    } else if (state.mode === 'play' && me) {
+      cam.x = me.dx[0]; cam.y = me.dx[1];
+    }
+    statusT -= dt;
+    if (statusT <= 0) { statusT = 0.25; computeStatus(now); }
+    brainStep(now, dt);
+  }
+
+  function drawLabels(s) {
+    const sx = (s.dx[0] - cam.x) * scale + W / 2;
+    const sy = (s.dx[1] - cam.y) * scale + H / 2;
+    if (sx < -80 || sx > W + 80 || sy < -80 || sy > H + 80) return;
+    const r = radiusOf(s.mass) * 1.25 * scale;
+
+    ctx.textAlign = 'center';
+    ctx.font = '600 12px Sora, system-ui, sans-serif';
+    ctx.fillStyle = s.bot ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.85)';
+    ctx.fillText(s.bot ? `${s.name} · bot` : s.name, sx, sy - r - 8);
+
+    const txt = String(Math.round(s.mass));
+    const w = ctx.measureText(txt).width + 34;
+    const x = sx - w / 2, y = sy + r + 6;
+    ctx.fillStyle = 'rgba(124,92,255,.16)';
+    ctx.strokeStyle = 'rgba(124,92,255,.75)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x, y, w, 20, 7); ctx.fill(); ctx.stroke();
+    drawCoinFace(ctx, x + 12, y + 10, 6);
+    ctx.fillStyle = '#f1eefc';
+    ctx.fillText(txt, sx + 8, y + 14);
+  }
+
+  function drawMinimap() {
+    const size = 84;
+    const x0 = 14 + safe.l, y0 = 92 + safe.t;
+    ctx.fillStyle = 'rgba(8,7,13,.6)';
+    ctx.strokeStyle = 'rgba(124,92,255,.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x0, y0, size, size, 10); ctx.fill(); ctx.stroke();
+    const k = size / state.world;
+    for (const s of state.snakes.values()) {
+      const mine = s.id === state.id;
+      ctx.fillStyle = mine ? '#fff' : `hsl(${s.hue},80%,60%)`;
+      ctx.beginPath(); ctx.arc(x0 + s.dx[0] * k, y0 + s.dx[1] * k, mine ? 3 : 2, 0, TAU); ctx.fill();
+    }
+  }
+
+  function draw(now) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#08070d';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-cam.x, -cam.y);
+
+    const vx = cam.x - W / 2 / scale, vy = cam.y - H / 2 / scale;
+    const vw = W / scale, vh = H / scale;
+    ctx.fillStyle = hexPattern;
+    ctx.fillRect(vx, vy, vw, vh);
+
+    const Wd = state.world;
+    ctx.fillStyle = 'rgba(8,7,13,.84)';
+    ctx.beginPath();
+    ctx.rect(vx - 10, vy - 10, vw + 20, vh + 20);
+    ctx.rect(0, 0, Wd, Wd);
+    ctx.fill('evenodd');
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(255,92,122,.55)';
+    ctx.strokeRect(0, 0, Wd, Wd);
+
+    const me = state.snakes.get(state.id);
+    const eatR = me ? radiusOf(me.mass) + 22 : 0;
+    const hx = me ? me.dx[0] : 0, hy = me ? me.dx[1] : 0;
+    const f = state.food;
+    for (let i = 0; i < f.length; i += 3) {
+      const x = f[i], y = f[i + 1];
+      if (x < vx - 40 || x > vx + vw + 40 || y < vy - 40 || y > vy + vh + 40) continue;
+      if (eatR && state.mode === 'play' && (x - hx) ** 2 + (y - hy) ** 2 < eatR * eatR) continue;
+      drawOrb(x, y, f[i + 2]);
+    }
+
+    const fly = (s) => drawFly(ctx, s.dx, radiusOf(s.mass), s.hue, !!s.boost,
+      s.id === state.id ? myAvatarImg : avatars.get(s.id), s.id, now);
+    for (const s of state.snakes.values()) if (s.id !== state.id) fly(s);
+    if (me) fly(me);
+    ctx.restore();
+
+    if (state.mode !== 'menu') {
+      for (const s of state.snakes.values()) drawLabels(s);
+      drawMinimap();
+      drawBrain(now);
+      renderLeaderboard(now);
+    }
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    update(dt, now);
+    draw(now);
+    if (state.mode === 'menu') drawPreview(now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

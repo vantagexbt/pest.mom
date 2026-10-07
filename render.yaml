@@ -1,0 +1,9 @@
+# Optional: lets you deploy to Render with one click ("New > Blueprint").
+services:
+  - type: web
+    name: pest-mom
+    runtime: node
+    plan: free            # switch to a paid plan for launch day (no sleeping)
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
