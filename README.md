@@ -1,7 +1,6 @@
 # pest.mom
 
-![CI](https://github.com/YOUR_GITHUB_NAME/pest-mom/actions/workflows/ci.yml/badge.svg)
-
+![CI](https://github.com/vantagexbt/pest.mom/actions/workflows/ci.yml/badge.svg)
 **Become the biggest pest on Solana.**
 
 A free multiplayer fly game that runs in the browser. Fly around, eat `$PEST`
