@@ -116,7 +116,7 @@
   #lb em { font-style: normal; opacity: .55; font-size: 10px; }
   #lb li.bot { opacity: .65; }
   #lb li.gap { padding: 0; line-height: 6px; justify-content: center; letter-spacing: 2px; }
-  #cardPreview { display: block; width: 100%; height: auto; border-radius: 12px; margin: 0 0 12px; background: rgba(255,255,255,.04); aspect-ratio: 16 / 9; }
+  #cardPreview { display: block; width: 100%; height: auto; border-radius: 12px; margin: 0 0 12px; background: rgba(255,255,255,.04); aspect-ratio: 1200 / 630; }
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + var(--safe-b)); transform: translateX(-50%);
     max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
@@ -160,7 +160,7 @@
 </main>
 
 <section id="dead" class="panel" hidden>
-  <h2>You're out</h2>
+  <h2 id="deadTitle">You're out</h2>
   <p class="lead" id="deadReason"></p>
   <img id="cardPreview" alt="Your result card" hidden>
   <div class="stats">
@@ -173,6 +173,7 @@
     <button id="share" class="btn2" type="button">Share on X</button>
     <button id="save" class="btn2" type="button">Save image</button>
   </div>
+  <p class="note">Share on X uploads this picture to our server for 24 hours so X can show it under your post.</p>
   <button id="back" class="link" type="button">Change look</button>
 </section>
 <div id="toast" class="toast" hidden></div>
@@ -203,7 +204,7 @@
     mode: 'menu',   // 'menu' | 'play' | 'dead'
     ws: null, id: 0, world: 3200,
     snakes: new Map(), food: [], lb: [], mass: 10,
-    rank: [0, 0], online: 0, last: null, lastCardBlob: null, lastCardUrl: '',
+    rank: [0, 0], online: 0, last: null, lastCardBlob: null, lastCardUrl: '', lastCardCanvas: null, lastShareUrl: '',
     mm: new Map(), myName: '',
   };
   const cam = { x: 1600, y: 1600 };
@@ -854,9 +855,24 @@
 
   const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+  // Funny title that depends on how the run went. Used on the death screen and on the card.
+  function pestTitle(l) {
+    if (l.rank === 1) return 'King of Pests';
+    if (l.kills >= 3) return 'Tail Terrorist';
+    if (l.score >= 250) return 'Public Enemy No.1';
+    if (l.score >= 120) return 'Certified Pest';
+    if (l.score >= 50) return 'Solid Nuisance';
+    return 'Baby Pest';
+  }
+  const shareText = (l) =>
+    `${pestTitle(l)}: I grew to ${l.score} on pest.mom${l.kills ? ` and cut off ${l.kills} flies` : ''}. ` +
+    'Think you can beat me? Become the biggest pest on Solana. $PEST';
+
   function onDead(m) {
     state.mode = 'dead'; boosting = false;
     state.last = { score: m.score, kills: m.kills, rank: m.rank, of: m.of, time: m.time || 0, name: state.myName || 'Player', hue: +$('hue').value };
+    state.lastShareUrl = '';
+    $('deadTitle').textContent = pestTitle(state.last);
     $('deadScore').textContent = m.score;
     $('deadKills').textContent = m.kills;
     $('deadTime').textContent = fmtTime(m.time || 0);
@@ -864,63 +880,100 @@
     $('deadReason').textContent = m.rank ? `${why} You finished #${m.rank} of ${m.of}.` : why;
     $('cardPreview').hidden = true;
     $('dead').hidden = false;
-    makeCard(state.last).then((blob) => {
-      if (!blob) return;
-      if (state.lastCardUrl) URL.revokeObjectURL(state.lastCardUrl);
-      state.lastCardBlob = blob;
-      state.lastCardUrl = URL.createObjectURL(blob);
-      $('cardPreview').src = state.lastCardUrl;
-      $('cardPreview').hidden = false;
-    }).catch(() => {});
+    try {
+      const card = makeCard(state.last);
+      state.lastCardCanvas = card;
+      card.toBlob((blob) => {
+        if (!blob) return;
+        if (state.lastCardUrl) URL.revokeObjectURL(state.lastCardUrl);
+        state.lastCardBlob = blob;
+        state.lastCardUrl = URL.createObjectURL(blob);
+        $('cardPreview').src = state.lastCardUrl;
+        $('cardPreview').hidden = false;
+      }, 'image/jpeg', 0.88);
+    } catch {}
   }
 
-  // Builds the 1200x675 result picture that players share.
+  // The 1200x630 result picture players share (same shape X uses for link cards).
   function makeCard(l) {
     const c = document.createElement('canvas');
-    c.width = 1200; c.height = 675;
+    c.width = 1200; c.height = 630;
     const g = c.getContext('2d');
     const FONT = 'Sora, system-ui, sans-serif';
-    g.fillStyle = '#08070d'; g.fillRect(0, 0, 1200, 675);
-    g.fillStyle = hexPattern; g.fillRect(0, 0, 1200, 675);
-    const glow = g.createRadialGradient(950, 140, 20, 950, 140, 620);
-    glow.addColorStop(0, 'rgba(124,92,255,.38)'); glow.addColorStop(1, 'rgba(124,92,255,0)');
-    g.fillStyle = glow; g.fillRect(0, 0, 1200, 675);
 
-    drawCoinFace(g, 96, 84, 42);
+    g.fillStyle = '#08070d'; g.fillRect(0, 0, 1200, 630);
+    g.fillStyle = hexPattern; g.fillRect(0, 0, 1200, 630);
+    let gl = g.createRadialGradient(1000, 90, 10, 1000, 90, 620);
+    gl.addColorStop(0, 'rgba(124,92,255,.5)'); gl.addColorStop(1, 'rgba(124,92,255,0)');
+    g.fillStyle = gl; g.fillRect(0, 0, 1200, 630);
+    gl = g.createRadialGradient(120, 640, 10, 120, 640, 560);
+    gl.addColorStop(0, 'rgba(255,92,122,.28)'); gl.addColorStop(1, 'rgba(255,92,122,0)');
+    g.fillStyle = gl; g.fillRect(0, 0, 1200, 630);
+
+    // brand
+    drawCoinFace(g, 92, 78, 38);
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
     g.fillStyle = '#f1eefc'; g.font = `700 44px ${FONT}`;
-    g.fillText('pest.mom', 156, 99);
+    g.fillText('pest.mom', 146, 93);
 
-    g.fillStyle = 'rgba(241,238,252,.7)'; g.font = `600 34px ${FONT}`;
-    g.fillText(l.name.slice(0, 16), 70, 200);
+    // rank stamp
+    g.save();
+    g.translate(900, 90);
+    g.rotate(-0.1);
+    const label = pestTitle(l).toUpperCase();
+    g.font = `700 38px ${FONT}`;
+    const pw = g.measureText(label).width + 52, ph = 68;
+    g.fillStyle = 'rgba(255,210,60,.14)'; g.strokeStyle = '#ffd23c'; g.lineWidth = 5;
+    g.beginPath(); g.roundRect(-pw / 2, -ph / 2, pw, ph, 14); g.fill(); g.stroke();
+    g.fillStyle = '#ffd23c'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(label, 0, 3);
+    g.restore();
 
-    g.fillStyle = '#ffffff'; g.font = `700 210px ${FONT}`;
-    g.fillText(String(l.score), 62, 390);
-    g.fillStyle = 'rgba(241,238,252,.6)'; g.font = `600 32px ${FONT}`;
+    // name + big score
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.fillStyle = 'rgba(241,238,252,.78)'; g.font = `600 34px ${FONT}`;
+    g.fillText(l.name.slice(0, 16), 70, 205);
+    g.save();
+    g.shadowColor = 'rgba(124,92,255,.95)'; g.shadowBlur = 44;
+    g.fillStyle = '#fff'; g.font = `700 220px ${FONT}`;
+    g.fillText(String(l.score), 58, 395);
+    g.restore();
+    g.fillStyle = 'rgba(241,238,252,.6)'; g.font = `600 30px ${FONT}`;
     g.fillText('final length', 70, 440);
 
+    // the challenge
+    g.fillStyle = '#ff5c7a'; g.font = `700 42px ${FONT}`;
+    g.fillText(`Think you can beat ${l.score}?`, 70, 510);
+
+    // stats
     const stats = [
       [String(l.kills), 'flies cut off'],
       [fmtTime(l.time), 'time alive'],
       [l.rank ? `#${l.rank} of ${l.of}` : '-', 'final rank'],
     ];
-    stats.forEach(([v, label], i) => {
-      const y = 250 + i * 110;
-      g.fillStyle = '#ffd23c'; g.font = `700 64px ${FONT}`;
+    stats.forEach(([v, lab], i) => {
+      const y = 245 + i * 92;
+      g.fillStyle = '#ffd23c'; g.font = `700 58px ${FONT}`;
       g.fillText(v, 760, y);
-      g.fillStyle = 'rgba(241,238,252,.6)'; g.font = `600 26px ${FONT}`;
-      g.fillText(label, 762, y + 34);
+      g.fillStyle = 'rgba(241,238,252,.6)'; g.font = `600 24px ${FONT}`;
+      g.fillText(lab, 762, y + 30);
     });
 
-    // the player's own fly with its coin tail
-    const n = 10, pts = new Float32Array(n * 2);
-    for (let i = 0; i < n; i++) { pts[i * 2] = 1130 - i * 36; pts[i * 2 + 1] = 585 + Math.sin(i * 0.7) * 16; }
-    drawFly(g, pts, 30, l.hue, false, myAvatarImg, 0, performance.now());
+    // the player's fly with a coin tail, and a taunt
+    const n = 11, pts = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { pts[i * 2] = 1135 - i * 36; pts[i * 2 + 1] = 580 + Math.sin(i * 0.7) * 14; }
+    drawFly(g, pts, 28, l.hue, false, myAvatarImg, 0, performance.now());
+    g.fillStyle = '#fff';
+    g.beginPath(); g.roundRect(985, 468, 190, 56, 16); g.fill();
+    g.beginPath(); g.moveTo(1110, 523); g.lineTo(1132, 523); g.lineTo(1128, 548); g.closePath(); g.fill();
+    g.fillStyle = '#08070d'; g.font = `700 30px ${FONT}`; g.textAlign = 'center';
+    g.fillText('beat me!', 1080, 507);
 
+    // slogan
+    g.textAlign = 'left';
     g.fillStyle = '#b9a8ff'; g.font = `700 32px ${FONT}`;
-    g.fillText('Become the biggest pest on Solana.', 70, 600);
-
-    return new Promise((res) => c.toBlob(res, 'image/png'));
+    g.fillText('Become the biggest pest on Solana.', 70, 590);
+    return c;
   }
 
   let toastTimer = 0;
@@ -978,35 +1031,36 @@
   $('again').addEventListener('click', join);
   $('back').addEventListener('click', () => showMenu(''));
   $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+  // Uploads the card once and returns the link X turns into a big picture under the post.
+  async function uploadCard() {
+    if (state.lastShareUrl) return state.lastShareUrl;
+    let blob = state.lastCardBlob;
+    if (!blob) throw new Error('no card');
+    if (blob.size > 380 * 1024 && state.lastCardCanvas) {
+      blob = await new Promise((res) => state.lastCardCanvas.toBlob(res, 'image/jpeg', 0.7));
+    }
+    const r = await fetch('/card', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+    if (!r.ok) throw new Error('upload failed');
+    const { id } = await r.json();
+    state.lastShareUrl = `${location.origin}/s/${id}`;
+    return state.lastShareUrl;
+  }
+
   $('share').addEventListener('click', async () => {
     const l = state.last;
     if (!l) return;
-    const text = `I grew to ${l.score} on pest.mom and cut off ${l.kills} flies. Become the biggest pest on Solana. $PEST`;
-    const blob = state.lastCardBlob;
-    const intent = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(location.origin);
-    if (blob) {
-      const file = new File([blob], 'pest-result.png', { type: 'image/png' });
-      try {
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {   // phones: share sheet with the picture
-          await navigator.share({ files: [file], text, url: location.origin });
-          return;
-        }
-      } catch (e) { if (e && e.name === 'AbortError') return; }
-      try {                                                               // computers: copy the picture, then open X
-        const p = navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        window.open(intent, '_blank', 'noopener');
-        p.then(() => toast('Picture copied. Paste it into your post (Ctrl+V).'))
-          .catch(() => toast('Press "Save image" and attach it to your post.'));
-        return;
-      } catch {}
-    }
-    window.open(intent, '_blank', 'noopener');
-    toast('Press "Save image" and attach it to your post.');
+    // Open the tab right now (inside the click) so pop-up blockers allow it, fill it in when the upload is done.
+    const w = window.open('about:blank', '_blank');
+    let link = location.origin;
+    try { link = await uploadCard(); } catch { toast('Could not upload the picture. Use "Save image" and attach it.'); }
+    const intent = 'https://x.com/intent/post?text=' + encodeURIComponent(shareText(l)) + '&url=' + encodeURIComponent(link);
+    if (w) { try { w.location.href = intent; return; } catch {} }
+    window.location.href = intent;
   });
   $('save').addEventListener('click', () => {
     if (!state.lastCardUrl) return;
     const a = document.createElement('a');
-    a.href = state.lastCardUrl; a.download = 'pest-mom-result.png';
+    a.href = state.lastCardUrl; a.download = 'pest-mom-result.jpg';
     document.body.appendChild(a); a.click(); a.remove();
   });
 
