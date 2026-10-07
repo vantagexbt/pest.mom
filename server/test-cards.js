@@ -31,11 +31,12 @@ server.listen(0, async () => {
     assert.strictEqual(r.headers.get('content-type'), 'image/jpeg');
     assert.strictEqual(Buffer.from(await r.arrayBuffer()).length, 5000, 'same bytes come back');
 
-    r = await fetch(`${base}/s/${id}`, { headers: { 'x-forwarded-proto': 'https', host: 'pest.mom' } });
+    r = await fetch(`${base}/s/${id}`, { headers: { 'x-forwarded-proto': 'https' } });
     const html = await r.text();
     assert.strictEqual(r.status, 200);
     assert.ok(html.includes('summary_large_image'), 'twitter card tag present');
     assert.ok(html.includes(`/c/${id}.jpg`), 'image url present');
+    assert.ok(html.includes('content="https://'), 'image url is https behind the proxy');
 
     r = await fetch(base + '/card', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: jpg });
     assert.strictEqual(r.status, 400, 'non-JPEG content type rejected');

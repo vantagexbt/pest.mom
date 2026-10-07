@@ -173,6 +173,7 @@
     <button id="share" class="btn2" type="button">Share on X</button>
     <button id="save" class="btn2" type="button">Save image</button>
   </div>
+  <p class="note">Share on X uploads this picture to our server for 24 hours so X can show it under your post.</p>
   <button id="back" class="link" type="button">Change look</button>
 </section>
 <div id="toast" class="toast" hidden></div>
@@ -203,7 +204,7 @@
     mode: 'menu',   // 'menu' | 'play' | 'dead'
     ws: null, id: 0, world: 3200,
     snakes: new Map(), food: [], lb: [], mass: 10,
-    rank: [0, 0], online: 0, last: null, lastCardBlob: null, lastCardUrl: '', lastCardCanvas: null,
+    rank: [0, 0], online: 0, last: null, lastCardBlob: null, lastCardUrl: '', lastCardCanvas: null, lastShareUrl: '',
     mm: new Map(), myName: '',
   };
   const cam = { x: 1600, y: 1600 };
@@ -864,13 +865,14 @@
     return 'Baby Pest';
   }
   const shareText = (l) =>
-    `${pestTitle(l)}: I grew to ${l.score} on pest.mom${l.kills ? ` and cut off ${l.kills} flies` : ''}. ` +
+    `${pestTitle(l)}: I grew to ${l.score}${l.kills ? ` and cut off ${l.kills} flies` : ''}. ` +
     'Think you can beat me? Become the biggest pest on Solana. $PEST';
   const isTouch = window.matchMedia('(pointer: coarse)').matches;
 
   function onDead(m) {
     state.mode = 'dead'; boosting = false;
     state.last = { score: m.score, kills: m.kills, rank: m.rank, of: m.of, time: m.time || 0, name: state.myName || 'Player', hue: +$('hue').value };
+    state.lastShareUrl = '';
     $('deadTitle').textContent = pestTitle(state.last);
     $('deadScore').textContent = m.score;
     $('deadKills').textContent = m.kills;
@@ -1030,8 +1032,24 @@
   $('again').addEventListener('click', join);
   $('back').addEventListener('click', () => showMenu(''));
   $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+  // Uploads the card once and returns the link X turns into a big picture under the post.
+  async function uploadCard() {
+    if (state.lastShareUrl) return state.lastShareUrl;
+    let blob = state.lastCardBlob;
+    if (!blob) throw new Error('no card');
+    if (blob.size > 380 * 1024 && state.lastCardCanvas) {
+      blob = await new Promise((res) => state.lastCardCanvas.toBlob(res, 'image/jpeg', 0.7));
+    }
+    const r = await fetch('/card', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+    if (!r.ok) throw new Error('upload failed');
+    const { id } = await r.json();
+    state.lastShareUrl = `${location.origin}/s/${id}`;
+    return state.lastShareUrl;
+  }
+
   // Phones: the share sheet attaches the picture itself, pick X in it.
-  // Computers: X opens with the text ready, and the picture is on the clipboard (paste with Ctrl+V).
+  // Computers: X opens with the text and a link whose picture X shows by itself; the picture is also
+  // copied to the clipboard as a backup (Ctrl+V).
   $('share').addEventListener('click', async () => {
     const l = state.last;
     if (!l) return;
@@ -1054,14 +1072,17 @@
         copied = navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
       }
     } catch {}
-    window.open('https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(location.origin),
-      '_blank', 'noopener');
+    // Open the tab inside the click so pop-up blockers allow it, point it at X when the upload is done.
+    const w = window.open('about:blank', '_blank');
+    let link = location.origin;
+    try { link = await uploadCard(); } catch { toast('Could not upload the picture. Use "Save image" and attach it.'); }
+    const intent = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(link);
     if (copied) {
-      copied.then(() => toast(isTouch ? 'Picture copied. Long-press in your post and choose Paste.' : 'Picture copied. Press Ctrl+V in your post.'))
-        .catch(() => toast('Press "Save image" and attach it to your post.'));
-    } else {
-      toast('Press "Save image" and attach it to your post.');
+      copied.then(() => toast('The picture should show under your post by itself. If not, press Ctrl+V in the post.'))
+        .catch(() => {});
     }
+    if (w) { try { w.location.href = intent; return; } catch {} }
+    window.location.href = intent;
   });
   $('save').addEventListener('click', () => {
     if (!state.lastCardUrl) return;

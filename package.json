@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node server/test-sim.js"
+    "test": "node server/test-sim.js && node server/test-cards.js"
   },
   "engines": { "node": ">=18" },
   "dependencies": { "ws": "^8.18.0" }

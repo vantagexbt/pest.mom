@@ -90,9 +90,11 @@ function page(req, res, id) {
 <title>Think you can beat me on pest.mom?</title>
 <meta name="description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="pest.mom">
 <meta property="og:title" content="Think you can beat me on pest.mom?">
 <meta property="og:description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
 <meta property="og:image" content="${base}/c/${id}.jpg">
+<meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="${base}/s/${id}">
@@ -100,6 +102,7 @@ function page(req, res, id) {
 <meta name="twitter:title" content="Think you can beat me on pest.mom?">
 <meta name="twitter:description" content="Become the biggest pest on Solana. Free multiplayer fly game.">
 <meta name="twitter:image" content="${base}/c/${id}.jpg">
+<meta name="twitter:image:alt" content="A pest.mom result card">
 <style>body{margin:0;background:#08070d;color:#f1eefc;font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}a{color:#b9a8ff}</style>
 </head><body><p>Taking you to <a href="/">pest.mom</a>...</p>
 <script>location.replace('/');</script></body></html>`;

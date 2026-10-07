@@ -22,8 +22,8 @@ else's tail and you are out.
   calculation is real but tiny and runs in your browser. It is a visual effect, not an AI.
 - **Result card.** When you are out, the game draws a shareable picture with a funny title
   ("Baby Pest", "Certified Pest", "King of Pests"...) and a challenge. On phones "Share on X" opens the
-  share sheet with the picture attached; on computers it opens a ready post on X and copies the picture
-  so you can paste it with Ctrl+V.
+  share sheet with the picture attached; on computers it opens a ready post on X with a link whose
+  picture X shows by itself (backup: the picture is on your clipboard, paste with Ctrl+V).
 
 ## Is this legit? Read the code.
 
@@ -35,8 +35,10 @@ This repository is the **entire** game, client and server. Things you can verify
   opens a prefilled post link when you click it; the game never connects to your X account.
 - Photos are shrunk to a tiny JPEG in your browser and sent to the server, which only forwards
   them to other players in the arena. Nothing is stored on disk.
-- The result picture is drawn in your browser. Pressing "Share on X" never uploads it anywhere:
-  on phones it goes through the share sheet, on computers it is copied to your clipboard.
+- The result picture is drawn in your browser. On phones "Share on X" hands it to the share sheet.
+  On computers it is uploaded to the server and kept **in memory for 24 hours** (small JPEGs only,
+  10 uploads per minute per IP, newest 200 kept) so X can show it under your post, and it is also copied
+  to your clipboard. See `server/cards.js`. Nothing is written to disk.
 - `$PEST` is a memecoin. The game does not affect its price and nothing here is financial advice.
   The official contract address will be listed here once it exists: `TBA`.
 
@@ -69,7 +71,9 @@ client/index.html   rendering, input, menu, fly brain, HUD (no build step)
 client/coin.png     the $PEST coin picture used inside every orb
 server/game.js      game rules: movement, orbs, collisions, bots, snapshots
 server/index.js     static files + WebSocket glue
+server/cards.js     share-card hosting (upload, picture, card page)
 server/test-sim.js  headless test of the game rules
+server/test-cards.js test of the share-card endpoints
 ```
 
 Tuning (speed, map size, orb amount, bots) lives in `DEFAULTS` at the top of `server/game.js`.
